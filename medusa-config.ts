@@ -20,6 +20,10 @@ module.exports = defineConfig({
     backendUrl: process.env.BACKEND_URL,
   },
   modules: [
+    // Brand Module
+    {
+      resolve: "./src/modules/brand",
+    },
     // MinIO/S3 File Storage
     {
       resolve: "@medusajs/medusa/file",

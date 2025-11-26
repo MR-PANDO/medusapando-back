@@ -20,6 +20,14 @@ RUN corepack enable && \
 # Copy source code
 COPY . .
 
+# Set dummy env vars for build (real values come from Coolify at runtime)
+ENV DATABASE_URL=postgres://localhost:5432/medusa \
+    STORE_CORS=http://localhost:8000 \
+    ADMIN_CORS=http://localhost:9000 \
+    AUTH_CORS=http://localhost:9000 \
+    JWT_SECRET=build-secret \
+    COOKIE_SECRET=build-secret
+
 # Build the application
 RUN npm run build
 

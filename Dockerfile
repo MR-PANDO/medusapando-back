@@ -58,12 +58,12 @@ RUN chown -R medusa:medusa /app
 
 USER medusa
 
-# Expose port
-EXPOSE 9000
+# Expose port (default 9004, can be overridden by PORT env var)
+EXPOSE 9004
 
-# Health check
+# Health check uses PORT env var
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:9000/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-9004}/health || exit 1
 
 # Start the server
 CMD ["npm", "run", "start"]

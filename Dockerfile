@@ -35,35 +35,30 @@ RUN apk add --no-cache python3 make g++
 RUN addgroup --system --gid 1001 medusa && \
     adduser --system --uid 1001 medusa
 
-# Copy package files
-COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
-COPY .yarnrc.yml* ./
+# Copy the entire built server from .medusa/server
+COPY --from=builder /app/.medusa/server ./
 
-# Install production dependencies only
+# Install production dependencies in the server directory
 RUN corepack enable && \
     if [ -f yarn.lock ]; then yarn install --frozen-lockfile --production; \
     elif [ -f package-lock.json ]; then npm ci --only=production; \
     elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm install --frozen-lockfile --prod; \
     else npm install --only=production; fi
 
-# Copy built application from builder
-COPY --from=builder /app/.medusa ./.medusa
-
-# Copy medusa-config and other necessary files
-COPY medusa-config.ts ./
-COPY tsconfig.json ./
+# Set NODE_ENV to production
+ENV NODE_ENV=production
 
 # Set ownership
 RUN chown -R medusa:medusa /app
 
 USER medusa
 
-# Expose port (default 9004, can be overridden by PORT env var)
-EXPOSE 9004
+# Expose port (default 9000, can be overridden by PORT env var)
+EXPOSE 9000
 
-# Health check uses PORT env var
+# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-9004}/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-9000}/health || exit 1
 
-# Start the server
-CMD ["npm", "run", "start"]
+# Start the server using medusa start
+CMD ["npx", "medusa", "start"]

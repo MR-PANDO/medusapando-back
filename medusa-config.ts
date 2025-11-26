@@ -1,4 +1,4 @@
-import { loadEnv, defineConfig } from "@medusajs/framework/utils";
+import { loadEnv, defineConfig, Modules } from "@medusajs/framework/utils";
 
 loadEnv(process.env.NODE_ENV || "development", process.cwd());
 
@@ -19,4 +19,30 @@ module.exports = defineConfig({
     disable: process.env.DISABLE_ADMIN === "true",
     backendUrl: process.env.BACKEND_URL,
   },
+  modules: [
+    // MinIO/S3 File Storage
+    {
+      resolve: "@medusajs/medusa/file",
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/medusa/file-s3",
+            id: "s3",
+            options: {
+              file_url: process.env.MINIO_CDN_URL,
+              access_key_id: process.env.MINIO_ACCESS_KEY,
+              secret_access_key: process.env.MINIO_SECRET_KEY,
+              region: process.env.MINIO_REGION || "us-east-1",
+              bucket: process.env.MINIO_BUCKET,
+              endpoint: process.env.MINIO_ENDPOINT,
+              // Required for MinIO - forces path-style URLs
+              additional_client_config: {
+                forcePathStyle: true,
+              },
+            },
+          },
+        ],
+      },
+    },
+  ],
 });

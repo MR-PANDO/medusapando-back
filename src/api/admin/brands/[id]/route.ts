@@ -21,7 +21,10 @@ export const POST = async (
   const brandModuleService: BrandModuleService = req.scope.resolve(BRAND_MODULE)
   const { id } = req.params
 
-  const brand = await brandModuleService.updateBrands(id, req.validatedBody)
+  const brand = await brandModuleService.updateBrands({
+    id,
+    ...req.validatedBody,
+  })
 
   res.json({ brand })
 }

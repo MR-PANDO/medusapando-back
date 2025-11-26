@@ -1,26 +1,21 @@
 # Build stage
 FROM node:20-alpine AS builder
 
-WORKDIR /app
+WORKDIR /app/medusa
 
 # Install dependencies for native modules
 RUN apk add --no-cache python3 make g++
 
-# Copy package files
-COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
-COPY .yarnrc.yml* ./
-
-# Install ALL dependencies (including dev for build)
-RUN corepack enable && \
-    if [ -f yarn.lock ]; then yarn install --frozen-lockfile; \
-    elif [ -f package-lock.json ]; then npm ci; \
-    elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm install --frozen-lockfile; \
-    else npm install; fi
-
-# Copy source code
+# Copy everything
 COPY . .
 
-# Set dummy env vars for build (real values come from Coolify at runtime)
+# Remove node_modules if exists
+RUN rm -rf node_modules
+
+# Install dependencies
+RUN corepack enable && yarn install --frozen-lockfile
+
+# Set dummy env vars for build
 ENV DATABASE_URL=postgres://localhost:5432/medusa \
     STORE_CORS=http://localhost:8000 \
     ADMIN_CORS=http://localhost:9000 \
@@ -29,38 +24,50 @@ ENV DATABASE_URL=postgres://localhost:5432/medusa \
     COOKIE_SECRET=build-secret
 
 # Build the application
-RUN npm run build
+RUN yarn run build
 
 # Production stage
-FROM node:20-alpine AS runner
+FROM node:20-alpine
 
-# Install dependencies for native modules (needed at runtime)
+# Coolify build args workaround (https://github.com/coollabsio/coolify/issues/1930)
+ARG COOKIE_SECRET
+ARG JWT_SECRET
+ARG STORE_CORS
+ARG ADMIN_CORS
+ARG AUTH_CORS
+ARG DISABLE_ADMIN
+ARG WORKER_MODE
+ARG PORT
+ARG DATABASE_URL
+ARG REDIS_URL
+ARG BACKEND_URL
+
+WORKDIR /app/medusa
+
+# Install dependencies for native modules
 RUN apk add --no-cache python3 make g++
 
-# Create non-root user
-RUN addgroup --system --gid 1001 medusa && \
-    adduser --system --uid 1001 medusa
+# Create .medusa directory
+RUN mkdir -p .medusa
 
-# Set working directory to the built server
-WORKDIR /app/.medusa/server
+# Copy built application from builder
+COPY --from=builder /app/medusa/.medusa ./.medusa
 
-# Copy the ENTIRE app from builder (we need node_modules too)
-COPY --from=builder /app /app
+# Change to server directory
+WORKDIR /app/medusa/.medusa/server
 
-# Set NODE_ENV to production
+# Install production dependencies
+RUN corepack enable && yarn install --production
+
+# Copy migrations script
+COPY migrations.sh /app/medusa/.medusa/server/migrations.sh
+RUN chmod +x /app/medusa/.medusa/server/migrations.sh
+
+# Set NODE_ENV
 ENV NODE_ENV=production
-
-# Set ownership
-RUN chown -R medusa:medusa /app
-
-USER medusa
 
 # Expose port
 EXPOSE 9000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-9000}/health || exit 1
-
-# Start the server - run from .medusa/server directory
-CMD ["npm", "run", "start"]
+# Start the server
+CMD ["yarn", "run", "start"]

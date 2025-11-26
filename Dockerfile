@@ -10,7 +10,7 @@ RUN apk add --no-cache python3 make g++
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
 COPY .yarnrc.yml* ./
 
-# Install dependencies
+# Install ALL dependencies (including dev for build)
 RUN corepack enable && \
     if [ -f yarn.lock ]; then yarn install --frozen-lockfile; \
     elif [ -f package-lock.json ]; then npm ci; \
@@ -34,8 +34,6 @@ RUN npm run build
 # Production stage
 FROM node:20-alpine AS runner
 
-WORKDIR /app
-
 # Install dependencies for native modules (needed at runtime)
 RUN apk add --no-cache python3 make g++
 
@@ -43,15 +41,11 @@ RUN apk add --no-cache python3 make g++
 RUN addgroup --system --gid 1001 medusa && \
     adduser --system --uid 1001 medusa
 
-# Copy the entire built server from .medusa/server
-COPY --from=builder /app/.medusa/server ./
+# Set working directory to the built server
+WORKDIR /app/.medusa/server
 
-# Install production dependencies in the server directory
-RUN corepack enable && \
-    if [ -f yarn.lock ]; then yarn install --frozen-lockfile --production; \
-    elif [ -f package-lock.json ]; then npm ci --only=production; \
-    elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm install --frozen-lockfile --prod; \
-    else npm install --only=production; fi
+# Copy the ENTIRE app from builder (we need node_modules too)
+COPY --from=builder /app /app
 
 # Set NODE_ENV to production
 ENV NODE_ENV=production
@@ -61,12 +55,12 @@ RUN chown -R medusa:medusa /app
 
 USER medusa
 
-# Expose port (default 9000, can be overridden by PORT env var)
+# Expose port
 EXPOSE 9000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-9000}/health || exit 1
 
-# Start the server using medusa start
-CMD ["npx", "medusa", "start"]
+# Start the server - run from .medusa/server directory
+CMD ["npm", "run", "start"]

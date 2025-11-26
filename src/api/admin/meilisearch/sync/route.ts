@@ -1,9 +1,11 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MeiliSearch } from "meilisearch"
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   try {
     const productService = req.scope.resolve("product")
+
+    // Dynamic import for ESM module
+    const { MeiliSearch } = await import("meilisearch")
 
     // Initialize Meilisearch client
     const meiliClient = new MeiliSearch({

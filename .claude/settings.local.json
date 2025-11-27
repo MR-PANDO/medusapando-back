@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node import-unit-pricing.js:*)"
+      "Bash(node import-unit-pricing.js:*)",
+      "Bash(node import-sales-count.js:*)"
     ],
     "deny": [],
     "ask": []

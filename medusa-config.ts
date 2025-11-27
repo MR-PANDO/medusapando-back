@@ -72,9 +72,28 @@ module.exports = defineConfig({
                 "variant_sku",
                 "thumbnail",
                 "handle",
+                "variant_id",
               ],
             },
             primaryKey: "id",
+            fields: [
+              "id",
+              "title",
+              "description",
+              "thumbnail",
+              "handle",
+              "variants.id",
+              "variants.sku",
+            ],
+            transformer: (product: any, defaultTransformer: any, options: any) => {
+              const transformed = defaultTransformer(product, options);
+              // Extract first variant ID for add-to-cart functionality
+              if (product.variants && product.variants.length > 0) {
+                transformed.variant_id = product.variants[0].id;
+                transformed.variant_sku = product.variants[0].sku;
+              }
+              return transformed;
+            },
           },
         },
       },

@@ -1,9 +1,10 @@
 /**
- * Post-Import Script for Tags and Brands
+ * Post-Import Script for Tags, Brands, and Categories
  *
  * Run this AFTER the CSV import to:
  * 1. Create tags from WooCommerce and link them to imported products
  * 2. Create brands from WooCommerce and link them to imported products
+ * 3. Create categories from WooCommerce and link them to imported products
  *
  * Products are matched by external_id (WooCommerce product ID)
  *
@@ -127,13 +128,15 @@ async function main() {
     });
     console.log(`Found ${productMapping.size} products with external IDs`);
 
-    // Collect unique tags and brands from WooCommerce
+    // Collect unique tags, brands, and categories from WooCommerce
     const tagsMap = new Map(); // tag name -> { id, name, slug }
     const brandsMap = new Map(); // brand name -> { id, name, slug }
+    const categoriesMap = new Map(); // category name -> { id, name, slug }
     const productTags = []; // [{ wooProductId, tagName }]
     const productBrands = []; // [{ wooProductId, brandName }]
+    const productCategories = []; // [{ wooProductId, categoryName }]
 
-    console.log('\nCollecting tags and brands from WooCommerce products...');
+    console.log('\nCollecting tags, brands, and categories from WooCommerce products...');
 
     for (const product of wooProducts) {
       // Collect tags
@@ -169,12 +172,31 @@ async function main() {
           });
         }
       }
+
+      // Collect categories
+      if (product.categories && product.categories.length > 0) {
+        for (const category of product.categories) {
+          if (!categoriesMap.has(category.name)) {
+            categoriesMap.set(category.name, {
+              id: category.id,
+              name: category.name,
+              slug: category.slug
+            });
+          }
+          productCategories.push({
+            wooProductId: String(product.id),
+            categoryName: category.name
+          });
+        }
+      }
     }
 
     console.log(`Found ${tagsMap.size} unique tags`);
     console.log(`Found ${brandsMap.size} unique brands`);
+    console.log(`Found ${categoriesMap.size} unique categories`);
     console.log(`Found ${productTags.length} product-tag associations`);
     console.log(`Found ${productBrands.length} product-brand associations`);
+    console.log(`Found ${productCategories.length} product-category associations`);
 
     // ===== IMPORT TAGS =====
     console.log('\n' + '='.repeat(40));
@@ -308,12 +330,95 @@ async function main() {
     console.log(`Created ${brandLinksCreated} product-brand links`);
     console.log(`Skipped ${brandLinksSkipped} (product not found)`);
 
+    // ===== IMPORT CATEGORIES =====
+    console.log('\n' + '='.repeat(40));
+    console.log('Importing Categories');
+    console.log('='.repeat(40));
+
+    // Get existing categories
+    const existingCategoriesResult = await client.query('SELECT id, name, handle FROM product_category');
+    const existingCategories = new Map();
+    const existingCategoriesByHandle = new Map();
+    existingCategoriesResult.rows.forEach(row => {
+      existingCategories.set(row.name.toUpperCase(), row.id);
+      existingCategoriesByHandle.set(row.handle, row.id);
+    });
+    console.log(`Existing categories in database: ${existingCategories.size}`);
+
+    // Create new categories
+    const categoryIdMap = new Map(); // category name -> medusa category id
+    let categoriesCreated = 0;
+
+    for (const [categoryName, categoryData] of categoriesMap) {
+      const normalizedName = categoryName.toUpperCase();
+      const handle = createHandle(categoryName);
+
+      if (existingCategories.has(normalizedName)) {
+        categoryIdMap.set(categoryName, existingCategories.get(normalizedName));
+      } else if (existingCategoriesByHandle.has(handle)) {
+        categoryIdMap.set(categoryName, existingCategoriesByHandle.get(handle));
+      } else {
+        const categoryId = generateId('pcat');
+        // Decode HTML entities in category name
+        const decodedName = categoryName
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'");
+
+        // mpath is the materialized path, for root categories it's just the ID
+        const mpath = categoryId;
+
+        await client.query(
+          `INSERT INTO product_category (id, name, handle, description, mpath, is_active, is_internal, rank, created_at, updated_at)
+           VALUES ($1, $2, $3, '', $4, true, false, 0, NOW(), NOW())`,
+          [categoryId, decodedName, handle, mpath]
+        );
+        categoryIdMap.set(categoryName, categoryId);
+        categoriesCreated++;
+      }
+    }
+    console.log(`Created ${categoriesCreated} new categories`);
+
+    // Link products to categories
+    console.log('Linking products to categories...');
+    let categoryLinksCreated = 0;
+    let categoryLinksSkipped = 0;
+
+    for (const { wooProductId, categoryName } of productCategories) {
+      const medusaProductId = productMapping.get(wooProductId);
+      const medusaCategoryId = categoryIdMap.get(categoryName);
+
+      if (!medusaProductId || !medusaCategoryId) {
+        categoryLinksSkipped++;
+        continue;
+      }
+
+      // Check if link already exists
+      const existingLink = await client.query(
+        'SELECT 1 FROM product_category_product WHERE product_id = $1 AND product_category_id = $2',
+        [medusaProductId, medusaCategoryId]
+      );
+
+      if (existingLink.rows.length === 0) {
+        await client.query(
+          'INSERT INTO product_category_product (product_id, product_category_id) VALUES ($1, $2)',
+          [medusaProductId, medusaCategoryId]
+        );
+        categoryLinksCreated++;
+      }
+    }
+    console.log(`Created ${categoryLinksCreated} product-category links`);
+    console.log(`Skipped ${categoryLinksSkipped} (product or category not found)`);
+
     // ===== SUMMARY =====
     console.log('\n' + '='.repeat(60));
     console.log('Import Summary');
     console.log('='.repeat(60));
     console.log(`Tags: ${tagsCreated} created, ${tagLinksCreated} links`);
     console.log(`Brands: ${brandsCreated} created, ${brandLinksCreated} links`);
+    console.log(`Categories: ${categoriesCreated} created, ${categoryLinksCreated} links`);
     console.log('\nDone!');
 
   } catch (error) {

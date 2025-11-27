@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(node import-unit-pricing.js:*)",
-      "Bash(node import-sales-count.js:*)"
+      "Bash(node import-sales-count.js:*)",
+      "Bash(curl:*)",
+      "Bash(node -e \"\nconst { Client } = require(''pg'');\nconst client = new Client({ connectionString: ''postgres://postgres:h17yFs2z47Lg0x0uZJUXtBFiNyj4JKsu3M5rTrjrn4VaK2wFMLwieKaVZGpe3QbM@192.168.111.6:5432/postgres'' });\n\nasync function check() {\n  await client.connect();\n  \n  // Count published products\n  const result = await client.query(\"\"SELECT COUNT(*) FROM product WHERE status = ''published''\"\");\n  console.log(''Published products in DB:'', result.rows[0].count);\n  \n  // Count products with variants\n  const variants = await client.query(''SELECT COUNT(DISTINCT product_id) FROM product_variant'');\n  console.log(''Products with variants:'', variants.rows[0].count);\n  \n  await client.end();\n}\ncheck().catch(console.error);\n\")"
     ],
     "deny": [],
     "ask": []

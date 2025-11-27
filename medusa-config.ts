@@ -99,10 +99,5 @@ module.exports = defineConfig({
       },
     },
   ],
-  plugins: [
-    {
-      resolve: "@meduline/medusa-plugin-product-seo",
-      options: {},
-    },
-    ],
+  
 });

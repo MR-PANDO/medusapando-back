@@ -1,7 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node -e \"\nconst { Client } = require(''pg'');\nconst client = new Client({ connectionString: ''postgres://postgres:h17yFs2z47Lg0x0uZJUXtBFiNyj4JKsu3M5rTrjrn4VaK2wFMLwieKaVZGpe3QbM@192.168.111.6:5432/postgres'' });\n\nasync function check() {\n  await client.connect();\n  \n  // List all tables that might be link-related\n  const tables = await client.query(\\`\n    SELECT table_name \n    FROM information_schema.tables \n    WHERE table_schema = ''public'' \n    AND table_name LIKE ''%link%''\n    ORDER BY table_name\n  \\`);\n  console.log(''Link-related tables:'');\n  tables.rows.forEach(r => console.log(''  -'', r.table_name));\n  \n  await client.end();\n}\ncheck().catch(console.error);\n\")"
+      "Bash(node import-unit-pricing.js:*)"
     ],
     "deny": [],
     "ask": []

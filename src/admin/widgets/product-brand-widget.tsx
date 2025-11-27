@@ -18,7 +18,7 @@ type ProductBrandLink = {
 const ProductBrandWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
   const [brands, setBrands] = useState<Brand[]>([])
   const [currentBrand, setCurrentBrand] = useState<Brand | null>(null)
-  const [selectedBrandId, setSelectedBrandId] = useState<string>("")
+  const [selectedBrandId, setSelectedBrandId] = useState<string>("__none__")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -63,7 +63,7 @@ const ProductBrandWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ brand_id: selectedBrandId || null }),
+        body: JSON.stringify({ brand_id: selectedBrandId === "__none__" ? null : selectedBrandId }),
       })
 
       if (res.ok) {
@@ -115,7 +115,7 @@ const ProductBrandWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
                 <Select.Value placeholder="Select a brand" />
               </Select.Trigger>
               <Select.Content>
-                <Select.Item value="">No Brand</Select.Item>
+                <Select.Item value="__none__">No Brand</Select.Item>
                 {brands.map((brand) => (
                   <Select.Item key={brand.id} value={brand.id}>
                     {brand.name}

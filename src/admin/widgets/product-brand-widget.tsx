@@ -26,22 +26,27 @@ const ProductBrandWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch all brands
-        const brandsRes = await fetch("/admin/brands?limit=1000", {
-          credentials: "include",
-        })
-        const brandsData = await brandsRes.json()
-        setBrands(brandsData.brands || [])
+        // Fetch all brands and links in parallel
+        const [brandsRes, linksRes] = await Promise.all([
+          fetch("/admin/brands?limit=1000", { credentials: "include" }),
+          fetch("/admin/product-brand-links", { credentials: "include" }),
+        ])
 
-        // Fetch current product's brand link
-        const linkRes = await fetch(`/admin/products/${data.id}/brand`, {
-          credentials: "include",
-        })
-        if (linkRes.ok) {
-          const linkData = await linkRes.json()
-          if (linkData.brand) {
-            setCurrentBrand(linkData.brand)
-            setSelectedBrandId(linkData.brand.id)
+        const brandsData = await brandsRes.json()
+        const allBrands = brandsData.brands || []
+        setBrands(allBrands)
+
+        const linksData = await linksRes.json()
+        const links = linksData.links || []
+
+        // Find the link for this product
+        const productLink = links.find((link: ProductBrandLink) => link.product_id === data.id)
+
+        if (productLink && productLink.brand_id) {
+          const linkedBrand = allBrands.find((b: Brand) => b.id === productLink.brand_id)
+          if (linkedBrand) {
+            setCurrentBrand(linkedBrand)
+            setSelectedBrandId(linkedBrand.id)
           }
         }
       } catch (error) {

@@ -1,34 +1,38 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { BRAND_MODULE } from "../../../../../modules/brand"
 import BrandModuleService from "../../../../../modules/brand/service"
 
 // GET /admin/products/:id/brand - Get product's brand
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
   try {
-    // Query the link between product and brand
-    const { data } = await query.graph({
-      entity: "product_product_brandmodule_brand",
-      fields: ["brand_id", "product_id"],
-      filters: {
-        product_id: id,
-      },
+    // Use pg directly to query the link
+    const { Client } = await import("pg")
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL || "",
     })
 
-    if (!data || data.length === 0) {
+    await client.connect()
+
+    const linkResult = await client.query(
+      "SELECT brand_id FROM product_product_brandmodule_brand WHERE product_id = $1 AND deleted_at IS NULL LIMIT 1",
+      [id]
+    )
+
+    await client.end()
+
+    if (!linkResult.rows.length) {
       return res.json({ brand: null })
     }
 
-    // Get the brand details
+    // Get the brand details using the brand module service
     const brandModuleService: BrandModuleService = req.scope.resolve(BRAND_MODULE)
-    const brand = await brandModuleService.retrieveBrand(data[0].brand_id)
+    const brand = await brandModuleService.retrieveBrand(linkResult.rows[0].brand_id)
 
     res.json({ brand })
   } catch (error) {
-    // If no link found, return null
+    console.error("Error fetching brand:", error)
     res.json({ brand: null })
   }
 }
@@ -38,40 +42,41 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params
   const { brand_id } = req.body as { brand_id: string | null }
 
-  const remoteLink = req.scope.resolve(ContainerRegistrationKeys.REMOTE_LINK)
   const brandModuleService: BrandModuleService = req.scope.resolve(BRAND_MODULE)
 
   try {
-    // First, remove any existing brand link for this product
-    const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+    // Use pg directly to manage the link
+    const { Client } = await import("pg")
+    const crypto = await import("crypto")
 
-    const { data: existingLinks } = await query.graph({
-      entity: "product_product_brandmodule_brand",
-      fields: ["brand_id", "product_id"],
-      filters: {
-        product_id: id,
-      },
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL || "",
     })
 
-    // Dismiss existing links
-    if (existingLinks && existingLinks.length > 0) {
-      await remoteLink.dismiss({
-        "product.product": { product_id: id },
-        "brandModuleService.brand": { brand_id: existingLinks[0].brand_id },
-      })
-    }
+    await client.connect()
+
+    // Remove existing link for this product
+    await client.query(
+      "DELETE FROM product_product_brandmodule_brand WHERE product_id = $1",
+      [id]
+    )
 
     // If brand_id is provided, create new link
     if (brand_id) {
-      await remoteLink.create({
-        "product.product": { product_id: id },
-        "brandModuleService.brand": { brand_id: brand_id },
-      })
+      const linkId = `pbrand_${Date.now().toString(36).toUpperCase()}${crypto.randomBytes(8).toString("hex").toUpperCase()}`.substring(0, 30)
+
+      await client.query(
+        "INSERT INTO product_product_brandmodule_brand (id, product_id, brand_id, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW())",
+        [linkId, id, brand_id]
+      )
+
+      await client.end()
 
       const brand = await brandModuleService.retrieveBrand(brand_id)
       return res.json({ brand })
     }
 
+    await client.end()
     res.json({ brand: null })
   } catch (error) {
     console.error("Error updating product brand:", error)

@@ -1,40 +1,42 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { BRAND_MODULE } from "../../../../../modules/brand"
-import BrandModuleService from "../../../../../modules/brand/service"
 
 // GET /store/products/:id/brand - Get product's brand (public)
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
   try {
-    // Query the link between product and brand
-    const { data } = await query.graph({
-      entity: "product_product_brandmodule_brand",
-      fields: ["brand_id", "product_id"],
-      filters: {
-        product_id: id,
-      },
+    // Use pg directly to query the link and brand
+    const { Client } = await import("pg")
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL || "",
     })
 
-    if (!data || data.length === 0) {
+    await client.connect()
+
+    const result = await client.query(
+      `SELECT b.id, b.name, b.handle
+       FROM brand b
+       INNER JOIN product_product_brandmodule_brand pb ON b.id = pb.brand_id
+       WHERE pb.product_id = $1 AND pb.deleted_at IS NULL
+       LIMIT 1`,
+      [id]
+    )
+
+    await client.end()
+
+    if (!result.rows.length) {
       return res.json({ brand: null })
     }
 
-    // Get the brand details
-    const brandModuleService: BrandModuleService = req.scope.resolve(BRAND_MODULE)
-    const brand = await brandModuleService.retrieveBrand(data[0].brand_id)
-
     res.json({
       brand: {
-        id: brand.id,
-        name: brand.name,
-        handle: brand.handle,
+        id: result.rows[0].id,
+        name: result.rows[0].name,
+        handle: result.rows[0].handle,
       }
     })
   } catch (error) {
-    // If no link found, return null
+    console.error("Error fetching brand:", error)
     res.json({ brand: null })
   }
 }

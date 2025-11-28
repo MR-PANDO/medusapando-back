@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(dir /s /b d:Projectsvitaintegral-store)",
+      "Bash(findstr:*)",
+      "Bash(git config:*)",
+      "Bash(git push)"
     ],
     "deny": [],
     "ask": []

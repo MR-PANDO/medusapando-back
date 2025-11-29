@@ -24,6 +24,10 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/brand",
     },
+    // Colombia Geo Module (Departamentos, Municipios, Shipping Zones)
+    {
+      resolve: "./src/modules/colombia-geo",
+    },
     // MinIO/S3 File Storage
     {
       resolve: "@medusajs/medusa/file",

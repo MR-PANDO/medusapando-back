@@ -1,12 +1,11 @@
 import { ExecArgs } from "@medusajs/framework/types"
 import { COLOMBIA_GEO_MODULE } from "../modules/colombia-geo"
-import ColombiaGeoModuleService from "../modules/colombia-geo/service"
 import { DEPARTAMENTOS } from "../modules/colombia-geo/data/departamentos"
 import { MUNICIPIOS } from "../modules/colombia-geo/data/municipios"
 import { SHIPPING_ZONES } from "../modules/colombia-geo/data/shipping-zones"
 
 export default async function seedColombiaGeo({ container }: ExecArgs) {
-  const colombiaGeoService = container.resolve<ColombiaGeoModuleService>(COLOMBIA_GEO_MODULE)
+  const colombiaGeoService: any = container.resolve(COLOMBIA_GEO_MODULE)
 
   console.log("Seeding Colombia geo data...")
 
@@ -30,9 +29,9 @@ export default async function seedColombiaGeo({ container }: ExecArgs) {
   console.log("Seeding departamentos...")
   for (const depto of DEPARTAMENTOS) {
     try {
-      const existing = await colombiaGeoService.listDepartamentoes({ code: depto.code })
+      const existing = await colombiaGeoService.listDepartamentos({ code: depto.code })
       if (existing.length === 0) {
-        await colombiaGeoService.createDepartamentoes(depto)
+        await colombiaGeoService.createDepartamentos(depto)
         console.log(`  Created departamento: ${depto.name}`)
       } else {
         console.log(`  Departamento already exists: ${depto.name}`)
@@ -47,9 +46,9 @@ export default async function seedColombiaGeo({ container }: ExecArgs) {
   let municipioCount = 0
   for (const municipio of MUNICIPIOS) {
     try {
-      const existing = await colombiaGeoService.listMunicipioes({ code: municipio.code })
+      const existing = await colombiaGeoService.listMunicipios({ code: municipio.code })
       if (existing.length === 0) {
-        await colombiaGeoService.createMunicipioes(municipio)
+        await colombiaGeoService.createMunicipios(municipio)
         municipioCount++
       }
     } catch (error) {

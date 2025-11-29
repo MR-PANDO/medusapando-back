@@ -10,14 +10,16 @@ class ColombiaGeoModuleService extends MedusaService({
 }) {
   // Get all departamentos ordered by name
   async listDepartamentosOrdered() {
-    return this.listDepartamentoes({}, {
+    // MedusaService generates: listDepartamentos for model "departamento"
+    return (this as any).listDepartamentos({}, {
       order: { name: "ASC" },
     })
   }
 
   // Get municipios by departamento code
   async listMunicipiosByDepartamento(departamentoCode: string) {
-    return this.listMunicipioes(
+    // MedusaService generates: listMunicipios for model "municipio"
+    return (this as any).listMunicipios(
       { departamento_code: departamentoCode },
       { order: { name: "ASC" } }
     )
@@ -25,20 +27,20 @@ class ColombiaGeoModuleService extends MedusaService({
 
   // Get shipping zone for a municipio
   async getShippingZoneForMunicipio(municipioCode: string) {
-    const municipios = await this.listMunicipioes({ code: municipioCode })
+    const municipios = await (this as any).listMunicipios({ code: municipioCode })
     const municipio = municipios[0]
     if (!municipio?.shipping_zone) {
       // Return default zone if no specific zone assigned
-      const zones = await this.listShippingZones({ code: "rural" })
+      const zones = await (this as any).listShippingZones({ code: "rural" })
       return zones[0] || null
     }
-    const zones = await this.listShippingZones({ code: municipio.shipping_zone })
+    const zones = await (this as any).listShippingZones({ code: municipio.shipping_zone })
     return zones[0] || null
   }
 
   // Get active shipping zones
   async listActiveShippingZones() {
-    return this.listShippingZones(
+    return (this as any).listShippingZones(
       { is_active: true },
       { order: { name: "ASC" } }
     )

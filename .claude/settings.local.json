@@ -8,7 +8,10 @@
       "Bash(git push)",
       "Bash(npm run build:*)",
       "Bash(taskkill:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(npx medusa:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfix: add migration generation and entrypoint for custom modules\n\n- Update migrations.sh to use npm instead of yarn\n- Add db:generate step for brandModuleService and colombiaGeoModuleService\n- Use migrations.sh as Docker entrypoint to run migrations before server start\n- This ensures custom module tables are created before seeding\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []

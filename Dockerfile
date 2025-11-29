@@ -1,5 +1,5 @@
 # Build stage
-# Force rebuild: 2025-11-29-v6 (verify colombia-geo API routes)
+# Force rebuild: 2025-11-29-v7 (fix TypeScript service method names)
 FROM node:20-alpine AS builder
 
 WORKDIR /app/medusa

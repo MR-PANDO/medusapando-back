@@ -3,6 +3,13 @@ import { Departamento } from "./models/departamento"
 import { Municipio } from "./models/municipio"
 import { ShippingZone } from "./models/shipping-zone"
 
+// MedusaService auto-generates methods based on model CLASS names:
+// - Departamento -> listDepartamentoes, createDepartamentoes
+// - Municipio -> listMunicipioes, createMunicipioes
+// - ShippingZone -> listShippingZones, createShippingZones
+//
+// The seed script casts service to 'any' to access these methods directly.
+
 class ColombiaGeoModuleService extends MedusaService({
   Departamento,
   Municipio,
@@ -10,16 +17,14 @@ class ColombiaGeoModuleService extends MedusaService({
 }) {
   // Get all departamentos ordered by name
   async listDepartamentosOrdered() {
-    // MedusaService generates: listDepartamentos for model "departamento"
-    return (this as any).listDepartamentos({}, {
+    return (this as any).listDepartamentoes({}, {
       order: { name: "ASC" },
     })
   }
 
   // Get municipios by departamento code
   async listMunicipiosByDepartamento(departamentoCode: string) {
-    // MedusaService generates: listMunicipios for model "municipio"
-    return (this as any).listMunicipios(
+    return (this as any).listMunicipioes(
       { departamento_code: departamentoCode },
       { order: { name: "ASC" } }
     )
@@ -27,7 +32,7 @@ class ColombiaGeoModuleService extends MedusaService({
 
   // Get shipping zone for a municipio
   async getShippingZoneForMunicipio(municipioCode: string) {
-    const municipios = await (this as any).listMunicipios({ code: municipioCode })
+    const municipios = await (this as any).listMunicipioes({ code: municipioCode })
     const municipio = municipios[0]
     if (!municipio?.shipping_zone) {
       // Return default zone if no specific zone assigned

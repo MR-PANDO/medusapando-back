@@ -4,6 +4,11 @@ import { DEPARTAMENTOS } from "../modules/colombia-geo/data/departamentos"
 import { MUNICIPIOS } from "../modules/colombia-geo/data/municipios"
 import { SHIPPING_ZONES } from "../modules/colombia-geo/data/shipping-zones"
 
+// MedusaService generates these method names based on model CLASS names:
+// - Departamento -> listDepartamentoes, createDepartamentoes
+// - Municipio -> listMunicipioes, createMunicipioes
+// - ShippingZone -> listShippingZones, createShippingZones
+
 export default async function seedColombiaGeo({ container }: ExecArgs) {
   const colombiaGeoService: any = container.resolve(COLOMBIA_GEO_MODULE)
 
@@ -29,9 +34,9 @@ export default async function seedColombiaGeo({ container }: ExecArgs) {
   console.log("Seeding departamentos...")
   for (const depto of DEPARTAMENTOS) {
     try {
-      const existing = await colombiaGeoService.listDepartamentos({ code: depto.code })
+      const existing = await colombiaGeoService.listDepartamentoes({ code: depto.code })
       if (existing.length === 0) {
-        await colombiaGeoService.createDepartamentos(depto)
+        await colombiaGeoService.createDepartamentoes(depto)
         console.log(`  Created departamento: ${depto.name}`)
       } else {
         console.log(`  Departamento already exists: ${depto.name}`)
@@ -46,9 +51,9 @@ export default async function seedColombiaGeo({ container }: ExecArgs) {
   let municipioCount = 0
   for (const municipio of MUNICIPIOS) {
     try {
-      const existing = await colombiaGeoService.listMunicipios({ code: municipio.code })
+      const existing = await colombiaGeoService.listMunicipioes({ code: municipio.code })
       if (existing.length === 0) {
-        await colombiaGeoService.createMunicipios(municipio)
+        await colombiaGeoService.createMunicipioes(municipio)
         municipioCount++
       }
     } catch (error) {

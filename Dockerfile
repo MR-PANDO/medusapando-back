@@ -1,5 +1,5 @@
 # Build stage
-# Force rebuild: 2025-11-29-v5 (direct SQL table creation)
+# Force rebuild: 2025-11-29-v6 (verify colombia-geo API routes)
 FROM node:20-alpine AS builder
 
 WORKDIR /app/medusa

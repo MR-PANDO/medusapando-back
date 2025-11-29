@@ -1,5 +1,5 @@
 # Build stage
-# Force rebuild: 2025-11-29
+# Force rebuild: 2025-11-29-v2 (add entrypoint for migrations)
 FROM node:20-alpine AS builder
 
 WORKDIR /app/medusa
@@ -91,7 +91,7 @@ WORKDIR /app/medusa/.medusa/server
 # Install production dependencies
 RUN npm ci --omit=dev
 
-# Copy migrations script
+# Copy migrations script as entrypoint
 COPY migrations.sh /app/medusa/.medusa/server/migrations.sh
 RUN chmod +x /app/medusa/.medusa/server/migrations.sh
 
@@ -101,5 +101,6 @@ ENV NODE_ENV=production
 # Expose port
 EXPOSE 9000
 
-# Start the server
+# Use migrations.sh as entrypoint to run migrations before starting
+ENTRYPOINT ["/app/medusa/.medusa/server/migrations.sh"]
 CMD ["npm", "run", "start"]

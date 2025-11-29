@@ -5,7 +5,9 @@
       "Bash(dir /s /b d:Projectsvitaintegral-store)",
       "Bash(findstr:*)",
       "Bash(git config:*)",
-      "Bash(git push)"
+      "Bash(git push)",
+      "Bash(npm run build:*)",
+      "Bash(taskkill:*)"
     ],
     "deny": [],
     "ask": []

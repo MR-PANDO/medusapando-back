@@ -1,5 +1,5 @@
 # Build stage
-# Force rebuild: 2025-11-29-v3 (use /bin/sh for Alpine)
+# Force rebuild: 2025-11-29-v4 (show db:generate output)
 FROM node:20-alpine AS builder
 
 WORKDIR /app/medusa

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 if [ "$WORKER_MODE" != "worker" ]; then
   echo "Running migrations for $WORKER_MODE"

@@ -1,5 +1,5 @@
 # Build stage
-# Force rebuild: 2025-11-29-v2 (add entrypoint for migrations)
+# Force rebuild: 2025-11-29-v3 (use /bin/sh for Alpine)
 FROM node:20-alpine AS builder
 
 WORKDIR /app/medusa

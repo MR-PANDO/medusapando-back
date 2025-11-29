@@ -1,5 +1,5 @@
 # Build stage
-# Force rebuild: 2025-11-29-v7 (fix TypeScript service method names)
+# Force rebuild: 2025-11-29-v8 (optimize production stage to avoid npm timeout)
 FROM node:20-alpine AS builder
 
 WORKDIR /app/medusa
@@ -26,6 +26,9 @@ ENV DATABASE_URL=postgres://localhost:5432/medusa \
 
 # Build the application
 RUN npm run build
+
+# Prune dev dependencies after build to reduce image size
+RUN npm prune --omit=dev
 
 # Production stage
 FROM node:20-alpine
@@ -74,27 +77,16 @@ ENV COOKIE_SECRET=$COOKIE_SECRET \
     MEILISEARCH_HOST=$MEILISEARCH_HOST \
     MEILISEARCH_API_KEY=$MEILISEARCH_API_KEY
 
-WORKDIR /app/medusa
-
-# Install dependencies for native modules
-RUN apk add --no-cache python3 make g++
-
-# Create .medusa directory
-RUN mkdir -p .medusa
-
-# Copy built application from builder
-COPY --from=builder /app/medusa/.medusa ./.medusa
-
-# Change to server directory
 WORKDIR /app/medusa/.medusa/server
 
-# Install production dependencies
-RUN npm ci --omit=dev
+# Copy built application and production node_modules from builder
+COPY --from=builder /app/medusa/.medusa/server ./
+COPY --from=builder /app/medusa/node_modules ./node_modules
 
 # Copy migrations script and SQL init file
-COPY migrations.sh /app/medusa/.medusa/server/migrations.sh
-COPY init-tables.sql /app/medusa/.medusa/server/init-tables.sql
-RUN chmod +x /app/medusa/.medusa/server/migrations.sh
+COPY migrations.sh ./migrations.sh
+COPY init-tables.sql ./init-tables.sql
+RUN chmod +x ./migrations.sh
 
 # Set NODE_ENV
 ENV NODE_ENV=production
@@ -103,5 +95,5 @@ ENV NODE_ENV=production
 EXPOSE 9000
 
 # Use migrations.sh as entrypoint to run migrations before starting
-ENTRYPOINT ["/app/medusa/.medusa/server/migrations.sh"]
+ENTRYPOINT ["./migrations.sh"]
 CMD ["npm", "run", "start"]

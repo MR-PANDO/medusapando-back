@@ -1,5 +1,5 @@
 # Build stage
-# Force rebuild: 2025-11-26
+# Force rebuild: 2025-11-29
 FROM node:20-alpine AS builder
 
 WORKDIR /app/medusa
@@ -7,14 +7,14 @@ WORKDIR /app/medusa
 # Install dependencies for native modules
 RUN apk add --no-cache python3 make g++
 
-# Copy everything
+# Copy package files first for better caching
+COPY package.json package-lock.json ./
+
+# Install dependencies using npm
+RUN npm ci
+
+# Copy the rest of the application
 COPY . .
-
-# Remove node_modules if exists
-RUN rm -rf node_modules
-
-# Install dependencies
-RUN corepack enable && yarn install --frozen-lockfile
 
 # Set dummy env vars for build
 ENV DATABASE_URL=postgres://localhost:5432/medusa \
@@ -25,7 +25,7 @@ ENV DATABASE_URL=postgres://localhost:5432/medusa \
     COOKIE_SECRET=build-secret
 
 # Build the application
-RUN yarn run build
+RUN npm run build
 
 # Production stage
 FROM node:20-alpine
@@ -89,7 +89,7 @@ COPY --from=builder /app/medusa/.medusa ./.medusa
 WORKDIR /app/medusa/.medusa/server
 
 # Install production dependencies
-RUN corepack enable && yarn install --production
+RUN npm ci --omit=dev
 
 # Copy migrations script
 COPY migrations.sh /app/medusa/.medusa/server/migrations.sh
@@ -102,4 +102,4 @@ ENV NODE_ENV=production
 EXPOSE 9000
 
 # Start the server
-CMD ["yarn", "run", "start"]
+CMD ["npm", "run", "start"]

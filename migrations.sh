@@ -3,12 +3,42 @@
 if [ "$WORKER_MODE" != "worker" ]; then
   echo "Running migrations for $WORKER_MODE"
 
-  # Generate migrations for custom modules
-  echo "Generating migrations for brandModuleService..."
-  npx medusa db:generate brandModuleService 2>&1 || echo "brandModuleService migration generation completed (may already exist)"
+  # Create custom module tables directly via SQL
+  # This is needed because db:generate doesn't work in production without pre-existing migrations
+  echo "Creating custom module tables if they don't exist..."
+  if [ -f "./init-tables.sql" ]; then
+    # Extract database connection info from DATABASE_URL and run SQL
+    node -e "
+      const url = new URL(process.env.DATABASE_URL);
+      const fs = require('fs');
+      const { Client } = require('pg');
 
-  echo "Generating migrations for colombiaGeoModuleService..."
-  npx medusa db:generate colombiaGeoModuleService 2>&1 || echo "colombiaGeoModuleService migration generation completed (may already exist)"
+      const client = new Client({
+        host: url.hostname,
+        port: url.port || 5432,
+        database: url.pathname.slice(1),
+        user: url.username,
+        password: url.password,
+        ssl: url.searchParams.get('sslmode') === 'require' ? { rejectUnauthorized: false } : false
+      });
+
+      async function run() {
+        try {
+          await client.connect();
+          const sql = fs.readFileSync('./init-tables.sql', 'utf8');
+          await client.query(sql);
+          console.log('Custom tables created/verified successfully');
+        } catch (err) {
+          console.error('Error creating tables:', err.message);
+        } finally {
+          await client.end();
+        }
+      }
+      run();
+    "
+  else
+    echo "init-tables.sql not found, skipping direct table creation"
+  fi
 
   # Run migrations
   echo "Running database migrations..."

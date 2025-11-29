@@ -1,5 +1,5 @@
 # Build stage
-# Force rebuild: 2025-11-29-v4 (show db:generate output)
+# Force rebuild: 2025-11-29-v5 (direct SQL table creation)
 FROM node:20-alpine AS builder
 
 WORKDIR /app/medusa
@@ -91,8 +91,9 @@ WORKDIR /app/medusa/.medusa/server
 # Install production dependencies
 RUN npm ci --omit=dev
 
-# Copy migrations script as entrypoint
+# Copy migrations script and SQL init file
 COPY migrations.sh /app/medusa/.medusa/server/migrations.sh
+COPY init-tables.sql /app/medusa/.medusa/server/init-tables.sql
 RUN chmod +x /app/medusa/.medusa/server/migrations.sh
 
 # Set NODE_ENV

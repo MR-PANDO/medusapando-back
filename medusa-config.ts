@@ -24,6 +24,10 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/brand",
     },
+    // Recipe Module
+    {
+      resolve: "./src/modules/recipe",
+    },
     // MinIO/S3 File Storage
     {
       resolve: "@medusajs/medusa/file",

@@ -6,8 +6,9 @@ export const Recipe = model.define("recipe", {
   description: model.text(),
   image: model.text().nullable(),
   source_url: model.text().nullable(),
-  diet: model.text(), // diet id (vegano, keto, etc.)
-  diet_name: model.text(), // display name
+  // Multiple diets support
+  diets: model.json(), // string[] - diet IDs
+  diet_names: model.json(), // string[] - display names
   prep_time: model.text(),
   cook_time: model.text(),
   servings: model.number(),

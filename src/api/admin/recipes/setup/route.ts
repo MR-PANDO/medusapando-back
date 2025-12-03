@@ -1,13 +1,14 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import type { Knex } from "knex"
 
 // POST /admin/recipes/setup - Create recipe tables if they don't exist
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
-    const dataSource = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
+    const knex = req.scope.resolve<Knex>(ContainerRegistrationKeys.PG_CONNECTION)
 
     // Create recipe table
-    await dataSource.execute(`
+    await knex.raw(`
       CREATE TABLE IF NOT EXISTS "recipe" (
         "id" text NOT NULL,
         "title" text NOT NULL,
@@ -35,7 +36,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     `)
 
     // Create recipe_product table
-    await dataSource.execute(`
+    await knex.raw(`
       CREATE TABLE IF NOT EXISTS "recipe_product" (
         "id" text NOT NULL,
         "recipe_id" text NOT NULL,
@@ -54,25 +55,11 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     `)
 
     // Create indexes
-    await dataSource.execute(`
-      CREATE INDEX IF NOT EXISTS "recipe_status_idx" ON "recipe" ("status");
-    `)
-
-    await dataSource.execute(`
-      CREATE INDEX IF NOT EXISTS "recipe_spoonacular_id_idx" ON "recipe" ("spoonacular_id");
-    `)
-
-    await dataSource.execute(`
-      CREATE INDEX IF NOT EXISTS "recipe_product_recipe_id_idx" ON "recipe_product" ("recipe_id");
-    `)
-
-    await dataSource.execute(`
-      CREATE INDEX IF NOT EXISTS "recipe_deleted_at_idx" ON "recipe" ("deleted_at");
-    `)
-
-    await dataSource.execute(`
-      CREATE INDEX IF NOT EXISTS "recipe_product_deleted_at_idx" ON "recipe_product" ("deleted_at");
-    `)
+    await knex.raw(`CREATE INDEX IF NOT EXISTS "recipe_status_idx" ON "recipe" ("status");`)
+    await knex.raw(`CREATE INDEX IF NOT EXISTS "recipe_spoonacular_id_idx" ON "recipe" ("spoonacular_id");`)
+    await knex.raw(`CREATE INDEX IF NOT EXISTS "recipe_product_recipe_id_idx" ON "recipe_product" ("recipe_id");`)
+    await knex.raw(`CREATE INDEX IF NOT EXISTS "recipe_deleted_at_idx" ON "recipe" ("deleted_at");`)
+    await knex.raw(`CREATE INDEX IF NOT EXISTS "recipe_product_deleted_at_idx" ON "recipe_product" ("deleted_at");`)
 
     res.json({
       success: true,

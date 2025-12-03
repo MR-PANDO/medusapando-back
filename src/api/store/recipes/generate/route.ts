@@ -239,24 +239,22 @@ async function fetchDietSpecificRecipes(): Promise<SpoonacularRecipe[]> {
   return allRecipes
 }
 
-// POST /admin/recipes/generate - Generate recipes from Spoonacular (saves as DRAFT)
+// POST /store/recipes/generate - Generate recipes from Spoonacular (for cron jobs)
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
-    // Admin routes are automatically authenticated by Medusa 2.x
-    // For cron jobs, we support secret-based auth as fallback
+    // Validate secret for cron authentication
     const authHeader = req.headers.authorization
     const headerSecret = authHeader?.replace("Bearer ", "")
     const querySecret = req.query.secret as string
     const providedSecret = headerSecret || querySecret
 
-    // If this is a cron request with secret, validate it
-    if (providedSecret && providedSecret !== CRON_SECRET) {
-      return res.status(401).json({ error: "Invalid secret" })
+    if (!providedSecret || providedSecret !== CRON_SECRET) {
+      return res.status(401).json({ error: "Unauthorized - Invalid or missing secret" })
     }
 
     const recipeModuleService: RecipeModuleService = req.scope.resolve(RECIPE_MODULE)
 
-    console.log("Starting recipe generation from Spoonacular...")
+    console.log("Starting recipe generation from Spoonacular (cron)...")
 
     // Get existing spoonacular IDs to avoid duplicates
     const existingRecipes = await recipeModuleService.listRecipes({})
@@ -377,7 +375,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 }
 
-// GET /admin/recipes/generate - Also support GET for cron jobs
+// GET /store/recipes/generate - Also support GET for cron jobs
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   return POST(req, res)
 }

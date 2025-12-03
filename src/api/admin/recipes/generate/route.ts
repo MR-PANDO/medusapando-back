@@ -3,6 +3,7 @@ import { RECIPE_MODULE } from "../../../../modules/recipe"
 import RecipeModuleService from "../../../../modules/recipe/service"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import Anthropic from "@anthropic-ai/sdk"
+import { getSmartProductMatches } from "../../../../lib/ai-recipe-service"
 
 const SPOONACULAR_API_KEY = process.env.SPOONACULAR_API_KEY || ""
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || ""
@@ -212,182 +213,7 @@ function getCompatibleDiets(recipe: SpoonacularRecipe): { ids: string[], names: 
   return { ids, names }
 }
 
-// Words that indicate a processed product (should not match raw ingredients)
-const PROCESSED_PRODUCT_KEYWORDS = [
-  "croqueta", "croquetas", "jugo", "juice", "bebida", "drink",
-  "galleta", "galletas", "cookie", "cookies", "snack", "snacks",
-  "chip", "chips", "papas fritas", "arepa", "arepas", "empanada",
-  "preparado", "preparada", "listo", "lista", "instantáneo", "instantanea",
-  "polvo", "powder", "mezcla", "mix", "concentrado", "concentrate",
-  "barra", "barrita", "bar", "granola bar", "cereal bar",
-  "helado", "ice cream", "postre", "dessert", "torta", "cake",
-  "pan ", "bread", "panadería", "bakery", "pastel", "pastry",
-  "salsa embotellada", "bottled sauce", "aderezo", "dressing",
-  "congelado", "frozen", "precocido", "precooked", "enlatado", "canned",
-  "sabor", "flavor", "saborizante", "flavoring", "artificial",
-]
-
-// Base ingredients that are valid to match (raw/whole foods)
-const BASE_INGREDIENT_KEYWORDS = [
-  "aceite", "oil", "vinagre", "vinegar", "sal", "salt", "azúcar", "sugar",
-  "miel", "honey", "especias", "spice", "hierba", "herb",
-  "harina", "flour", "arroz", "rice", "pasta", "fideos", "noodles",
-  "frijol", "frijoles", "beans", "lenteja", "lentejas", "lentils",
-  "garbanzo", "garbanzos", "chickpeas", "quinoa", "quinua", "avena", "oats",
-  "almendra", "almendras", "almond", "nuez", "nueces", "walnut", "nut",
-  "maní", "cacahuate", "peanut", "semilla", "seed", "chía", "chia", "linaza", "flax",
-  "coco", "coconut", "cacao", "chocolate puro", "pure chocolate",
-  "tofu", "tempeh", "soya", "soja", "soy",
-  "proteína", "proteina", "protein", "suplemento", "supplement",
-  "vitamina", "vitamin", "omega", "colágeno", "collagen",
-  "stevia", "eritritol", "endulzante natural", "natural sweetener",
-  "leche vegetal", "plant milk", "leche de almendra", "almond milk",
-  "leche de coco", "coconut milk", "leche de avena", "oat milk",
-  "mantequilla de maní", "peanut butter", "mantequilla de almendra", "almond butter",
-  "tahini", "hummus",
-  // Vegetables
-  "esparrago", "espárragos", "asparagus", "espinaca", "spinach",
-  "brocoli", "brócoli", "broccoli", "coliflor", "cauliflower",
-  "zanahoria", "carrot", "apio", "celery", "pepino", "cucumber",
-  "tomate", "tomato", "cebolla", "onion", "ajo", "garlic",
-  "pimiento", "pepper", "chile", "chili", "limón", "lemon", "lima", "lime",
-  "aguacate", "avocado", "palta", "lechuga", "lettuce", "repollo", "cabbage",
-  "calabaza", "pumpkin", "squash", "berenjena", "eggplant", "champiñón", "mushroom",
-]
-
-// Get search terms for an ingredient (original + translations)
-function getSearchTerms(ingredient: string): string[] {
-  const terms: string[] = []
-  const lowerIngredient = ingredient.toLowerCase()
-  const words = lowerIngredient.split(/\s+/).filter(w => w.length > 3)
-  terms.push(...words)
-
-  for (const word of words) {
-    if (INGREDIENT_TRANSLATIONS[word]) {
-      terms.push(...INGREDIENT_TRANSLATIONS[word])
-    }
-    for (const [english, spanish] of Object.entries(INGREDIENT_TRANSLATIONS)) {
-      if (spanish.some(s => s.includes(word) || word.includes(s))) {
-        terms.push(english)
-      }
-    }
-  }
-
-  return [...new Set(terms)]
-}
-
-// Check if a product is a processed food (should not match raw ingredients)
-function isProcessedProduct(productTitle: string): boolean {
-  const lowerTitle = productTitle.toLowerCase()
-  return PROCESSED_PRODUCT_KEYWORDS.some(keyword => lowerTitle.includes(keyword))
-}
-
-// Check if product is a base ingredient match (raw/whole foods store sells)
-function isBaseIngredientProduct(productTitle: string): boolean {
-  const lowerTitle = productTitle.toLowerCase()
-  return BASE_INGREDIENT_KEYWORDS.some(keyword => lowerTitle.includes(keyword))
-}
-
-// Calculate match quality between ingredient and product
-function calculateMatchQuality(ingredientTerms: string[], productTitle: string): number {
-  const lowerTitle = productTitle.toLowerCase()
-  let score = 0
-
-  for (const term of ingredientTerms) {
-    if (term.length < 3) continue
-
-    // Exact word match (higher score)
-    const wordRegex = new RegExp(`\\b${term}\\b`, 'i')
-    if (wordRegex.test(lowerTitle)) {
-      score += 3
-    }
-    // Partial match (lower score)
-    else if (lowerTitle.includes(term)) {
-      score += 1
-    }
-  }
-
-  return score
-}
-
-function findMatchingProducts(
-  ingredientNames: string[],
-  products: Product[],
-  dietIds: string[]
-): RecipeProduct[] {
-  const matchedProducts: RecipeProduct[] = []
-  const usedProductIds = new Set<string>()
-
-  // Filter to only base ingredient products (exclude processed foods)
-  const baseIngredientProducts = products.filter(p => {
-    const title = p.title.toLowerCase()
-    // Must be a base ingredient AND not a processed product
-    return isBaseIngredientProduct(title) && !isProcessedProduct(title)
-  })
-
-  // Filter to diet-compatible base ingredients
-  const dietProducts = baseIngredientProducts.filter((p) => {
-    const tags = p.tags?.map((t) => t.value.toLowerCase()) || []
-    return dietIds.some(dietId => tags.includes(dietId.toLowerCase()))
-  })
-
-  // Score all potential matches for each ingredient
-  interface PotentialMatch {
-    product: Product
-    ingredientName: string
-    score: number
-  }
-
-  const allPotentialMatches: PotentialMatch[] = []
-
-  for (const ingredientName of ingredientNames) {
-    const searchTerms = getSearchTerms(ingredientName)
-
-    // Search in diet products first, then all base ingredient products
-    const searchPools = [dietProducts, baseIngredientProducts]
-
-    for (const pool of searchPools) {
-      for (const product of pool) {
-        if (usedProductIds.has(product.id)) continue
-
-        const score = calculateMatchQuality(searchTerms, product.title)
-
-        // Only consider matches with score >= 3 (at least one exact word match)
-        if (score >= 3 && product.variants?.[0]) {
-          allPotentialMatches.push({
-            product,
-            ingredientName,
-            score,
-          })
-        }
-      }
-    }
-  }
-
-  // Sort by score (highest first) and pick the best matches
-  allPotentialMatches.sort((a, b) => b.score - a.score)
-
-  for (const match of allPotentialMatches) {
-    if (usedProductIds.has(match.product.id)) continue
-
-    matchedProducts.push({
-      id: match.product.id,
-      variantId: match.product.variants![0].id,
-      title: match.product.title,
-      handle: match.product.handle,
-      thumbnail: match.product.thumbnail,
-      quantity: "1 unidad",
-      price: (match.product.variants![0] as any).calculated_price?.calculated_amount,
-    })
-    usedProductIds.add(match.product.id)
-
-    if (matchedProducts.length >= 4) {
-      break
-    }
-  }
-
-  return matchedProducts
-}
+// Legacy findMatchingProducts replaced by getSmartProductMatches from ai-recipe-service
 
 function getDifficulty(readyInMinutes: number): "Fácil" | "Medio" | "Difícil" {
   if (readyInMinutes <= 30) return "Fácil"
@@ -582,13 +408,27 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
     const allRecipes: any[] = []
     let translatedCount = 0
+    let classificationStats: any = null
 
     for (const [spoonacularId, spRecipe] of uniqueRecipes) {
       if (allRecipes.length >= 30) break
 
       const { ids: dietIds, names: dietNames } = getCompatibleDiets(spRecipe)
       const ingredientNames = spRecipe.extendedIngredients?.map((i) => i.name) || []
-      const matchedProducts = findMatchingProducts(ingredientNames, products, dietIds)
+
+      // Use AI-powered smart product matching
+      const { products: matchedProducts, stats } = await getSmartProductMatches(
+        ingredientNames,
+        products,
+        dietIds,
+        4 // max products per recipe
+      )
+
+      // Log stats once
+      if (!classificationStats) {
+        classificationStats = stats
+        console.log(`Product classification: ${stats.baseProducts} BASE, ${stats.preparedProducts} PREPARED, ${stats.groupsCreated} groups`)
+      }
 
       const nutrients = spRecipe.nutrition?.nutrients || []
       const getNutrient = (name: string) => {

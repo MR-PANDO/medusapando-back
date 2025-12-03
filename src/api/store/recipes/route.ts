@@ -41,7 +41,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     difficulty: recipe.difficulty,
     ingredients: recipe.ingredients,
     instructions: recipe.instructions,
-    products: recipe.products,
+    products: (recipe.products || []).map((p: any) => ({
+      ...p,
+      hasAlternatives: p.hasAlternatives || false,
+      alternativeCount: p.alternativeCount || 0,
+    })),
     nutrition: recipe.nutrition,
     tips: recipe.tips,
     spoonacularId: recipe.spoonacular_id,

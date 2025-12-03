@@ -395,23 +395,32 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       }
     }
 
-    console.log(`Processing ${uniqueRecipes.size} new unique recipes...`)
+    console.log(`Processing ${uniqueRecipes.size} new unique recipes to ADD to database...`)
 
-    // If we have enough recipes, don't delete. Only delete if refreshing all.
-    const shouldRefresh = existingRecipes.length === 0 || uniqueRecipes.size >= 20
+    // NEVER delete existing recipes - always accumulate
+    // Each run adds new recipes that don't exist yet (checked by spoonacular_id)
 
-    if (shouldRefresh && existingRecipes.length > 0) {
-      // Delete old recipes if doing a full refresh
-      await recipeModuleService.deleteRecipes(existingRecipes.map((r: any) => r.id))
-      console.log(`Deleted ${existingRecipes.length} old recipes for refresh`)
+    if (uniqueRecipes.size === 0) {
+      console.log("No new recipes to add. All fetched recipes already exist in database.")
+      return res.json({
+        success: true,
+        count: 0,
+        existingCount: existingRecipes.length,
+        message: "No new recipes found - database already has these recipes",
+        generatedAt: new Date().toISOString(),
+      })
     }
 
     const allRecipes: any[] = []
     let translatedCount = 0
     let classificationStats: any = null
 
+    // Limit to 10 new recipes per run to respect API quotas
+    const maxNewRecipes = 10
+    let processedCount = 0
+
     for (const [spoonacularId, spRecipe] of uniqueRecipes) {
-      if (allRecipes.length >= 30) break
+      if (processedCount >= maxNewRecipes) break
 
       const { ids: dietIds, names: dietNames } = getCompatibleDiets(spRecipe)
       const ingredientNames = spRecipe.extendedIngredients?.map((i) => i.name) || []
@@ -481,13 +490,17 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
       const recipe = await recipeModuleService.createRecipes(recipeData as any)
       allRecipes.push(recipe)
+      processedCount++
     }
 
-    console.log(`Generated ${allRecipes.length} unique translated recipes`)
+    const totalRecipes = existingRecipes.length + allRecipes.length
+    console.log(`Added ${allRecipes.length} new recipes. Total in database: ${totalRecipes}`)
 
     res.json({
       success: true,
       count: allRecipes.length,
+      totalRecipes,
+      existingCount: existingRecipes.length,
       generatedAt: new Date().toISOString(),
     })
   } catch (error) {

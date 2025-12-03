@@ -24,6 +24,9 @@ ENV DATABASE_URL=postgres://localhost:5432/medusa \
     JWT_SECRET=build-secret \
     COOKIE_SECRET=build-secret
 
+# Increase Node memory for admin build
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
 # Build the application
 RUN npm run build
 

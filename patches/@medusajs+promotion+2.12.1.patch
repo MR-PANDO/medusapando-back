@@ -1,0 +1,34 @@
+diff --git a/node_modules/@medusajs/promotion/dist/utils/compute-actions/build-promotion-rule-query-filter-from-context.js b/node_modules/@medusajs/promotion/dist/utils/compute-actions/build-promotion-rule-query-filter-from-context.js
+index 680140c..e2ff652 100644
+--- a/node_modules/@medusajs/promotion/dist/utils/compute-actions/build-promotion-rule-query-filter-from-context.js
++++ b/node_modules/@medusajs/promotion/dist/utils/compute-actions/build-promotion-rule-query-filter-from-context.js
+@@ -96,24 +96,11 @@ async function buildPromotionRuleQueryFilterFromContext(context, sharedContext)
+     // Handle the case where context has no attributes at all, it means
+     // that any promotion that have a rule cant be satisfied by the context
+     if (attributeValueMap.size === 0) {
+-        // If context has no attributes, exclude all promotions that have any rules (promotion rules, target rules, or buy rules)
+-        const noRulesSubquery = (alias) => `
+-      ${alias}.id NOT IN (
+-        SELECT DISTINCT ppr.promotion_id
+-        FROM promotion_promotion_rule ppr
+-        UNION
+-        SELECT DISTINCT am.promotion_id
+-        FROM promotion_application_method am
+-        JOIN application_method_target_rules amtr ON am.id = amtr.application_method_id
+-        UNION
+-        SELECT DISTINCT am2.promotion_id
+-        FROM promotion_application_method am2
+-        JOIN application_method_buy_rules ambr ON am2.id = ambr.application_method_id
+-      )
+-    `.trim();
+-        return {
+-            [(0, postgresql_1.raw)((alias) => noRulesSubquery(alias))]: true,
+-        };
++        // PATCHED: Return null to skip pre-filtering when context has no attributes
++        // This avoids the MikroORM raw() function bug that causes SQL syntax errors
++        // The original code tried to use raw() with a function callback, but it gets
++        // serialized incorrectly causing "improper qualified name" errors
++        return null;
+     }
+     const joinedConditions = sqlConditions.join(" OR ");
+     const queryEstimatedSize = joinedConditions.length;

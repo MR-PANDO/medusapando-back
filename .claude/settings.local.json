@@ -9,7 +9,10 @@
       "Bash(git push:*)",
       "Bash(npx medusa:*)",
       "Bash(npm run build:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(del \"d:\\Projects\\vitaintegral-store\\medusapando-back\\src\\modules\\nutrition\\migrations\\Migration20251203131500.ts\")"
     ],
     "deny": [],
     "ask": []

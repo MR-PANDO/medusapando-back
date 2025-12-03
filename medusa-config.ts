@@ -28,6 +28,10 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/recipe",
     },
+    // Nutrition Module - Product nutrition label scanning
+    {
+      resolve: "./src/modules/nutrition",
+    },
     // MinIO/S3 File Storage
     {
       resolve: "@medusajs/medusa/file",

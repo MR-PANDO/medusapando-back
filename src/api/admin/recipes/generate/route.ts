@@ -1,9 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { RECIPE_MODULE } from "../../../../modules/recipe"
 import RecipeModuleService from "../../../../modules/recipe/service"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import Anthropic from "@anthropic-ai/sdk"
-import { getSmartProductMatches } from "../../../../lib/ai-recipe-service"
+import { RecipeStatus } from "../../../../modules/recipe/models/recipe"
 
 const SPOONACULAR_API_KEY = process.env.SPOONACULAR_API_KEY || ""
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || ""
@@ -20,101 +19,6 @@ const DIETS = [
   { id: "sin-gluten", name: "Sin Gluten", spoonacularDiet: "gluten free", spoonacularIntolerances: "gluten" },
   { id: "keto", name: "Keto", spoonacularDiet: "ketogenic", spoonacularIntolerances: "" },
 ]
-
-// Common ingredient translations English <-> Spanish
-const INGREDIENT_TRANSLATIONS: Record<string, string[]> = {
-  "chicken": ["pollo", "gallina"],
-  "beef": ["carne", "res", "ternera"],
-  "pork": ["cerdo", "chancho"],
-  "fish": ["pescado", "pez"],
-  "salmon": ["salmón"],
-  "tuna": ["atún"],
-  "shrimp": ["camarón", "camarones", "gambas"],
-  "egg": ["huevo", "huevos"],
-  "eggs": ["huevos", "huevo"],
-  "milk": ["leche"],
-  "cheese": ["queso"],
-  "butter": ["mantequilla"],
-  "cream": ["crema", "nata"],
-  "yogurt": ["yogur", "yogurt"],
-  "tomato": ["tomate"],
-  "onion": ["cebolla"],
-  "garlic": ["ajo"],
-  "pepper": ["pimiento", "pimienta", "ají"],
-  "carrot": ["zanahoria"],
-  "potato": ["papa", "patata"],
-  "spinach": ["espinaca", "espinacas"],
-  "broccoli": ["brócoli", "brocoli"],
-  "lettuce": ["lechuga"],
-  "cucumber": ["pepino"],
-  "avocado": ["aguacate", "palta"],
-  "corn": ["maíz", "choclo"],
-  "beans": ["frijoles", "judías", "porotos"],
-  "lentils": ["lentejas"],
-  "chickpeas": ["garbanzos"],
-  "mushroom": ["champiñón", "hongo", "setas"],
-  "apple": ["manzana"],
-  "banana": ["banano", "plátano", "guineo"],
-  "orange": ["naranja"],
-  "lemon": ["limón"],
-  "lime": ["lima", "limón verde"],
-  "strawberry": ["fresa", "frutilla"],
-  "mango": ["mango"],
-  "pineapple": ["piña", "ananá"],
-  "coconut": ["coco"],
-  "rice": ["arroz"],
-  "pasta": ["pasta", "fideos"],
-  "bread": ["pan"],
-  "flour": ["harina"],
-  "oats": ["avena"],
-  "quinoa": ["quinoa", "quinua"],
-  "almond": ["almendra", "almendras"],
-  "walnut": ["nuez", "nueces"],
-  "peanut": ["maní", "cacahuate"],
-  "chia": ["chía"],
-  "flax": ["linaza"],
-  "oil": ["aceite"],
-  "olive": ["oliva", "aceituna"],
-  "sugar": ["azúcar"],
-  "honey": ["miel"],
-  "stevia": ["stevia", "estevia"],
-  "salt": ["sal"],
-  "vinegar": ["vinagre"],
-  "soy": ["soya", "soja"],
-  "tofu": ["tofu"],
-  "chocolate": ["chocolate", "cacao"],
-  "coffee": ["café"],
-  "tea": ["té"],
-  "cinnamon": ["canela"],
-  "ginger": ["jengibre"],
-  "turmeric": ["cúrcuma"],
-  "protein": ["proteína", "proteina"],
-  "powder": ["polvo"],
-  "supplement": ["suplemento"],
-  "vitamin": ["vitamina"],
-  "organic": ["orgánico", "organico"],
-  "gluten": ["gluten"],
-  "vegan": ["vegano"],
-}
-
-interface Product {
-  id: string
-  title: string
-  handle: string
-  thumbnail?: string
-  tags?: Array<{ value: string }>
-  variants?: Array<{ id: string; calculated_price?: { calculated_amount: number } }>
-}
-
-interface RecipeProduct {
-  id: string
-  variantId: string
-  title: string
-  handle: string
-  thumbnail?: string
-  quantity: string
-  price?: number
-}
 
 interface NutritionInfo {
   calories: number
@@ -154,18 +58,6 @@ interface SpoonacularRecipe {
       unit: string
     }>
   }
-}
-
-async function fetchProducts(req: MedusaRequest): Promise<Product[]> {
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-
-  const { data: products } = await query.graph({
-    entity: "product",
-    fields: ["id", "title", "handle", "thumbnail", "tags.*", "variants.*"],
-    pagination: { take: 200 },
-  })
-
-  return products as unknown as Product[]
 }
 
 // Determine which diets a recipe is compatible with
@@ -212,8 +104,6 @@ function getCompatibleDiets(recipe: SpoonacularRecipe): { ids: string[], names: 
 
   return { ids, names }
 }
-
-// Legacy findMatchingProducts replaced by getSmartProductMatches from ai-recipe-service
 
 function getDifficulty(readyInMinutes: number): "Fácil" | "Medio" | "Difícil" {
   if (readyInMinutes <= 30) return "Fácil"
@@ -293,7 +183,7 @@ Responde con este formato JSON exacto:
   return { ...recipe }
 }
 
-// Fetch diet-specific recipes to ensure variety
+// Fetch diet-specific recipes from Spoonacular
 async function fetchDietSpecificRecipes(): Promise<SpoonacularRecipe[]> {
   const allRecipes: SpoonacularRecipe[] = []
   const seenIds = new Set<number>()
@@ -303,7 +193,7 @@ async function fetchDietSpecificRecipes(): Promise<SpoonacularRecipe[]> {
 
     const params = new URLSearchParams({
       apiKey: SPOONACULAR_API_KEY,
-      number: "6",
+      number: "4", // Fewer per diet to stay within limits
       addRecipeNutrition: "true",
       addRecipeInstructions: "true",
       fillIngredients: "true",
@@ -349,7 +239,7 @@ async function fetchDietSpecificRecipes(): Promise<SpoonacularRecipe[]> {
   return allRecipes
 }
 
-// POST /admin/recipes/generate - Generate daily recipes from Spoonacular
+// POST /admin/recipes/generate - Generate recipes from Spoonacular (saves as DRAFT)
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
     const authHeader = req.headers.authorization
@@ -366,10 +256,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
     const recipeModuleService: RecipeModuleService = req.scope.resolve(RECIPE_MODULE)
 
-    console.log("Starting daily recipe generation from Spoonacular...")
-
-    const products = await fetchProducts(req)
-    console.log(`Fetched ${products.length} products from store`)
+    console.log("Starting recipe generation from Spoonacular...")
 
     // Get existing spoonacular IDs to avoid duplicates
     const existingRecipes = await recipeModuleService.listRecipes({})
@@ -383,7 +270,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const spoonacularRecipes = await fetchDietSpecificRecipes()
     console.log(`Fetched ${spoonacularRecipes.length} recipes from Spoonacular`)
 
-    // Deduplicate and filter out existing
+    // Filter out existing recipes (by spoonacular_id)
     const uniqueRecipes = new Map<number, SpoonacularRecipe>()
     for (const recipe of spoonacularRecipes) {
       if (
@@ -395,27 +282,22 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       }
     }
 
-    console.log(`Processing ${uniqueRecipes.size} new unique recipes to ADD to database...`)
-
-    // NEVER delete existing recipes - always accumulate
-    // Each run adds new recipes that don't exist yet (checked by spoonacular_id)
+    console.log(`Found ${uniqueRecipes.size} new unique recipes`)
 
     if (uniqueRecipes.size === 0) {
-      console.log("No new recipes to add. All fetched recipes already exist in database.")
+      console.log("No new recipes to add.")
       return res.json({
         success: true,
         count: 0,
         existingCount: existingRecipes.length,
-        message: "No new recipes found - database already has these recipes",
+        message: "No new recipes found - all fetched recipes already exist",
         generatedAt: new Date().toISOString(),
       })
     }
 
-    const allRecipes: any[] = []
-    let translatedCount = 0
-    let classificationStats: any = null
+    const createdRecipes: any[] = []
 
-    // Limit to 10 new recipes per run to respect API quotas
+    // Limit to 10 new recipes per run
     const maxNewRecipes = 10
     let processedCount = 0
 
@@ -423,21 +305,6 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       if (processedCount >= maxNewRecipes) break
 
       const { ids: dietIds, names: dietNames } = getCompatibleDiets(spRecipe)
-      const ingredientNames = spRecipe.extendedIngredients?.map((i) => i.name) || []
-
-      // Use AI-powered smart product matching
-      const { products: matchedProducts, stats } = await getSmartProductMatches(
-        ingredientNames,
-        products,
-        dietIds,
-        4 // max products per recipe
-      )
-
-      // Log stats once
-      if (!classificationStats) {
-        classificationStats = stats
-        console.log(`Product classification: ${stats.baseProducts} BASE, ${stats.preparedProducts} PREPARED, ${stats.groupsCreated} groups`)
-      }
 
       const nutrients = spRecipe.nutrition?.nutrients || []
       const getNutrient = (name: string) => {
@@ -461,13 +328,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         ingredients: spRecipe.extendedIngredients?.map((i) => i.original) || [],
         instructions: spRecipe.analyzedInstructions[0]?.steps?.map((s) => s.step) || [],
       })
-      translatedCount++
 
-      if (translatedCount % 5 === 0) {
+      // Rate limiting for translation API
+      if (processedCount > 0 && processedCount % 5 === 0) {
         await new Promise(resolve => setTimeout(resolve, 500))
       }
 
-      // Create recipe in database
+      // Create recipe as DRAFT (no products assigned yet)
       const recipeData = {
         title: translated.title,
         description: translated.description.slice(0, 200) + (translated.description.length > 200 ? "..." : ""),
@@ -481,30 +348,31 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         difficulty: getDifficulty(spRecipe.readyInMinutes),
         ingredients: translated.ingredients,
         instructions: translated.instructions,
-        products: matchedProducts,
         nutrition,
         tips: translated.tips || null,
         spoonacular_id: spoonacularId,
         generated_at: new Date(),
+        status: RecipeStatus.DRAFT, // New recipes start as draft
       }
 
       const recipe = await recipeModuleService.createRecipes(recipeData as any)
-      allRecipes.push(recipe)
+      createdRecipes.push(recipe)
       processedCount++
     }
 
-    const totalRecipes = existingRecipes.length + allRecipes.length
-    console.log(`Added ${allRecipes.length} new recipes. Total in database: ${totalRecipes}`)
+    const totalRecipes = existingRecipes.length + createdRecipes.length
+    console.log(`Added ${createdRecipes.length} new draft recipes. Total in database: ${totalRecipes}`)
 
     res.json({
       success: true,
-      count: allRecipes.length,
+      count: createdRecipes.length,
       totalRecipes,
       existingCount: existingRecipes.length,
+      message: `Added ${createdRecipes.length} new recipes as drafts. Assign products in admin panel to publish.`,
       generatedAt: new Date().toISOString(),
     })
   } catch (error) {
-    console.error("Error generating daily recipes:", error)
+    console.error("Error generating recipes:", error)
     res.status(500).json({ error: "Error generating recipes" })
   }
 }

@@ -1,8 +1,9 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { RECIPE_MODULE } from "../../../modules/recipe"
 import RecipeModuleService from "../../../modules/recipe/service"
+import { RecipeStatus } from "../../../modules/recipe/models/recipe"
 
-// GET /store/recipes - List all recipes (public)
+// GET /store/recipes - List published recipes with their products
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const recipeModuleService: RecipeModuleService = req.scope.resolve(RECIPE_MODULE)
 
@@ -10,8 +11,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const offset = req.query.offset ? parseInt(req.query.offset as string) : 0
   const diet = req.query.diet as string | undefined
 
-  // Build filters - for multiple diets we filter in memory
-  const filters: Record<string, any> = {}
+  // Only fetch published recipes
+  const filters: Record<string, any> = {
+    status: RecipeStatus.PUBLISHED,
+  }
 
   const [recipes, count] = await recipeModuleService.listAndCountRecipes(
     filters,
@@ -22,46 +25,57 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   )
 
-  // Transform to frontend format
-  let transformedRecipes = recipes.map((recipe: any) => ({
-    id: recipe.id,
-    title: recipe.title,
-    description: recipe.description,
-    image: recipe.image,
-    sourceUrl: recipe.source_url,
-    // Support new multiple diets format
-    diets: recipe.diets || [],
-    dietNames: recipe.diet_names || [],
-    // Legacy single diet support (for backwards compatibility)
-    diet: recipe.diets?.[0] || recipe.diet,
-    dietName: recipe.diet_names?.[0] || recipe.diet_name,
-    prepTime: recipe.prep_time,
-    cookTime: recipe.cook_time,
-    servings: recipe.servings,
-    difficulty: recipe.difficulty,
-    ingredients: recipe.ingredients,
-    instructions: recipe.instructions,
-    products: (recipe.products || []).map((p: any) => ({
-      ...p,
-      hasAlternatives: p.hasAlternatives || false,
-      alternativeCount: p.alternativeCount || 0,
-    })),
-    nutrition: recipe.nutrition,
-    tips: recipe.tips,
-    spoonacularId: recipe.spoonacular_id,
-    generatedAt: recipe.generated_at,
-  }))
+  // Get products for each recipe
+  const recipesWithProducts = await Promise.all(
+    recipes.map(async (recipe: any) => {
+      const products = await recipeModuleService.listRecipeProducts({
+        recipe_id: recipe.id,
+      })
+      return {
+        id: recipe.id,
+        title: recipe.title,
+        description: recipe.description,
+        image: recipe.image,
+        sourceUrl: recipe.source_url,
+        diets: recipe.diets || [],
+        dietNames: recipe.diet_names || [],
+        // Legacy single diet support
+        diet: recipe.diets?.[0],
+        dietName: recipe.diet_names?.[0],
+        prepTime: recipe.prep_time,
+        cookTime: recipe.cook_time,
+        servings: recipe.servings,
+        difficulty: recipe.difficulty,
+        ingredients: recipe.ingredients,
+        instructions: recipe.instructions,
+        products: products.map((p: any) => ({
+          id: p.product_id,
+          variantId: p.variant_id,
+          title: p.product_title,
+          handle: p.product_handle,
+          thumbnail: p.product_thumbnail,
+          quantity: p.quantity,
+          notes: p.notes,
+        })),
+        nutrition: recipe.nutrition,
+        tips: recipe.tips,
+        spoonacularId: recipe.spoonacular_id,
+        generatedAt: recipe.generated_at,
+      }
+    })
+  )
 
-  // Filter by diet if specified (check if diet is in the diets array)
+  // Filter by diet if specified
+  let filteredRecipes = recipesWithProducts
   if (diet) {
-    transformedRecipes = transformedRecipes.filter((r: any) =>
+    filteredRecipes = recipesWithProducts.filter((r: any) =>
       r.diets?.includes(diet) || r.diet === diet
     )
   }
 
   res.json({
-    recipes: transformedRecipes,
-    count: transformedRecipes.length,
+    recipes: filteredRecipes,
+    count: filteredRecipes.length,
     limit,
     offset,
     generatedAt: recipes.length > 0 ? recipes[0].generated_at : null,

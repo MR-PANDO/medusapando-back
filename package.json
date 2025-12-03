@@ -28,7 +28,8 @@
     "@medusajs/cli": "2.11.3",
     "@medusajs/framework": "2.11.3",
     "@medusajs/medusa": "2.11.3",
-    "@rokmohar/medusa-plugin-meilisearch": "^1.3.5"
+    "@rokmohar/medusa-plugin-meilisearch": "^1.3.5",
+    "lucide-react": "^0.555.0"
   },
   "devDependencies": {
     "@medusajs/test-utils": "2.11.3",

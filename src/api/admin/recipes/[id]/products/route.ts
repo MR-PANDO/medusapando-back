@@ -56,7 +56,6 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     product_thumbnail: product_thumbnail || null,
     quantity: quantity || "1 unidad",
     notes: notes || null,
-    created_at: new Date(),
   } as any)
 
   res.json({ product: recipeProduct })

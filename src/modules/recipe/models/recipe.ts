@@ -31,6 +31,7 @@ export const Recipe = model.define("recipe", {
 })
 
 // Recipe-Product association (admin manually assigns products to recipes)
+// Note: created_at, updated_at, deleted_at are implicit in Medusa models
 export const RecipeProduct = model.define("recipe_product", {
   id: model.id().primaryKey(),
   recipe_id: model.text(), // Foreign key to recipe
@@ -41,5 +42,4 @@ export const RecipeProduct = model.define("recipe_product", {
   product_thumbnail: model.text().nullable(),
   quantity: model.text().default("1 unidad"),
   notes: model.text().nullable(), // Optional notes like "can substitute with X"
-  created_at: model.dateTime(),
 })

@@ -11,7 +11,7 @@ export interface ClassifiedProduct {
   handle: string
   thumbnail?: string
   category: ProductCategory
-  baseIngredient?: string // e.g., "olive oil" for "Aceite de Oliva Extra Virgen 500ml"
+  baseIngredient?: string
   variants?: Array<{ id: string; calculated_price?: { calculated_amount: number } }>
 }
 
@@ -23,154 +23,197 @@ export interface ProductGroup {
   count: number
 }
 
-export interface IngredientRecommendation {
-  ingredientName: string
-  matchedGroup: ProductGroup | null
-  confidence: number
-  reason: string
+// ============================================
+// INGREDIENT CATEGORIES - Used for grouping similar products
+// ============================================
+const INGREDIENT_CATEGORIES: Record<string, string[]> = {
+  // Aceites - all olive oils should group together
+  "aceite de oliva": ["aceite de oliva", "aceite oliva", "olive oil"],
+  "aceite de coco": ["aceite de coco", "aceite coco", "coconut oil"],
+  "aceite de aguacate": ["aceite de aguacate", "aceite aguacate", "avocado oil"],
+
+  // Yogurt - all yogurts should group together regardless of flavor
+  "yogurt": ["yogurt", "yogur", "yoghurt"],
+
+  // Leches vegetales
+  "leche de almendras": ["leche de almendra", "leche almendra", "almond milk"],
+  "leche de coco": ["leche de coco", "leche coco", "coconut milk"],
+  "leche de avena": ["leche de avena", "leche avena", "oat milk"],
+
+  // Harinas
+  "harina de almendras": ["harina de almendra", "harina almendra", "almond flour"],
+  "harina de coco": ["harina de coco", "harina coco", "coconut flour"],
+  "harina de avena": ["harina de avena", "harina avena", "oat flour"],
+
+  // Mantequillas
+  "mantequilla de maní": ["mantequilla de maní", "mantequilla mani", "peanut butter", "crema de maní"],
+  "mantequilla de almendras": ["mantequilla de almendra", "almond butter"],
+
+  // Granos y semillas
+  "quinoa": ["quinoa", "quinua"],
+  "avena": ["avena", "oats", "oatmeal"],
+  "arroz": ["arroz", "rice"],
+  "chía": ["chia", "chía", "semillas de chia"],
+  "linaza": ["linaza", "flaxseed", "semillas de linaza"],
+
+  // Endulzantes
+  "miel": ["miel", "honey"],
+  "stevia": ["stevia", "estevia"],
+
+  // Proteínas
+  "proteína": ["proteina", "proteína", "protein", "whey"],
+
+  // Cacao/Chocolate
+  "cacao": ["cacao", "cocoa", "chocolate"],
+
+  // Frutos secos
+  "almendras": ["almendra", "almendras", "almond"],
+  "nueces": ["nuez", "nueces", "walnut"],
+  "maní": ["maní", "mani", "cacahuate", "peanut"],
+
+  // Vinagres
+  "vinagre": ["vinagre", "vinegar"],
 }
 
-// Keywords for quick classification (before using AI)
-const PROCESSED_KEYWORDS = [
-  "croqueta", "croquetas", "jugo", "juice", "bebida", "drink",
-  "galleta", "galletas", "cookie", "cookies", "snack", "snacks",
-  "chip", "chips", "papas fritas", "arepa", "arepas", "empanada",
-  "preparado", "preparada", "listo", "lista", "instantáneo",
-  "barra", "barrita", "bar", "cereal bar", "granola bar",
-  "helado", "ice cream", "postre", "dessert", "torta", "cake",
-  "panadería", "bakery", "pastel", "pastry",
-  "congelado", "frozen", "precocido", "precooked",
-  "saborizante", "artificial", "procesado",
+// Products that should NEVER be matched to recipe ingredients
+const EXCLUDED_PRODUCTS = [
+  "papas", "papa", "chips", "croqueta", "snack",
+  "galleta", "cookie", "barra", "bar",
+  "jugo", "juice", "bebida energética",
 ]
 
-const BASE_KEYWORDS = [
-  "aceite", "oil", "vinagre", "vinegar", "sal", "salt",
-  "harina", "flour", "arroz", "rice", "quinoa", "quinua",
-  "avena", "oats", "frijol", "beans", "lenteja", "lentejas",
-  "garbanzo", "chickpeas", "almendra", "almond", "nuez", "walnut",
-  "maní", "peanut", "semilla", "seed", "chía", "chia",
-  "coco", "coconut", "cacao", "chocolate", "tofu", "tempeh",
-  "proteína", "protein", "suplemento", "supplement",
-  "miel", "honey", "stevia", "endulzante",
-  "leche", "milk", "mantequilla", "butter",
-  "espinaca", "spinach", "brócoli", "broccoli", "zanahoria", "carrot",
-  "tomate", "tomato", "cebolla", "onion", "ajo", "garlic",
-  "aguacate", "avocado", "lechuga", "lettuce",
-]
+// ============================================
+// STRICT INGREDIENT MATCHING
+// Only match if the product contains the EXACT ingredient
+// ============================================
+const VALID_INGREDIENT_MATCHES: Record<string, string[]> = {
+  // Aceites
+  "olive oil": ["aceite de oliva", "aceite oliva"],
+  "aceite de oliva": ["aceite de oliva", "aceite oliva", "olive oil"],
+  "oil": ["aceite"],
+  "aceite": ["aceite"],
+
+  // Yogurt
+  "yogurt": ["yogurt", "yogur"],
+  "yogur": ["yogurt", "yogur"],
+
+  // Arroz
+  "rice": ["arroz"],
+  "arroz": ["arroz", "rice"],
+
+  // Frijoles
+  "beans": ["frijol", "frijoles"],
+  "frijoles": ["frijol", "frijoles"],
+
+  // Honey
+  "honey": ["miel"],
+  "miel": ["miel", "honey"],
+
+  // Ajo
+  "garlic": ["ajo"],
+  "ajo": ["ajo", "garlic"],
+
+  // Cebolla
+  "onion": ["cebolla"],
+  "cebolla": ["cebolla", "onion"],
+
+  // Pimienta (spice, not "papas")
+  "black pepper": ["pimienta negra", "pimienta"],
+  "pepper": ["pimienta", "pimiento"],
+  "pimienta": ["pimienta"],
+}
 
 /**
- * Quick classification using keywords (no API call needed)
+ * Check if a product should be excluded from matching
  */
-function quickClassify(title: string): ProductCategory {
+function shouldExcludeProduct(title: string): boolean {
+  const lower = title.toLowerCase()
+  return EXCLUDED_PRODUCTS.some(exc => lower.includes(exc))
+}
+
+/**
+ * Get the base ingredient category for a product
+ */
+function getIngredientCategory(title: string): string | null {
   const lower = title.toLowerCase()
 
-  if (PROCESSED_KEYWORDS.some(kw => lower.includes(kw))) {
-    return "PREPARED"
+  for (const [category, keywords] of Object.entries(INGREDIENT_CATEGORIES)) {
+    if (keywords.some(kw => lower.includes(kw))) {
+      return category
+    }
   }
 
-  if (BASE_KEYWORDS.some(kw => lower.includes(kw))) {
-    return "BASE"
-  }
-
-  return "UNKNOWN"
+  return null
 }
 
 /**
- * AI-powered product classifier that categorizes products as BASE or PREPARED
- * and extracts the base ingredient name for grouping
+ * Check if a product is a valid match for a recipe ingredient
+ */
+function isValidIngredientMatch(ingredientName: string, productTitle: string): boolean {
+  const lowerIngredient = ingredientName.toLowerCase()
+  const lowerProduct = productTitle.toLowerCase()
+
+  // First, check if product should be excluded
+  if (shouldExcludeProduct(lowerProduct)) {
+    return false
+  }
+
+  // Extract key ingredient words from recipe ingredient
+  const ingredientWords = lowerIngredient
+    .split(/\s+/)
+    .filter(w => w.length > 2)
+
+  // Check for valid matches
+  for (const word of ingredientWords) {
+    const validMatches = VALID_INGREDIENT_MATCHES[word]
+    if (validMatches) {
+      if (validMatches.some(match => lowerProduct.includes(match))) {
+        return true
+      }
+    }
+
+    // Direct word match (must be exact word, not substring)
+    const wordRegex = new RegExp(`\\b${word}\\b`, 'i')
+    if (wordRegex.test(lowerProduct)) {
+      return true
+    }
+  }
+
+  return false
+}
+
+/**
+ * Classify products and extract base ingredients
  */
 export async function classifyProducts(
   products: Array<{ id: string; title: string; handle: string; thumbnail?: string; variants?: any[] }>
 ): Promise<ClassifiedProduct[]> {
   const classified: ClassifiedProduct[] = []
 
-  // First pass: quick classification
-  const unknownProducts: typeof products = []
-
   for (const product of products) {
-    const category = quickClassify(product.title)
-
-    if (category !== "UNKNOWN") {
-      classified.push({
-        ...product,
-        category,
-        baseIngredient: category === "BASE" ? extractBaseIngredient(product.title) : undefined,
-      })
-    } else {
-      unknownProducts.push(product)
-    }
-  }
-
-  // If no Anthropic key or no unknown products, return early
-  if (!ANTHROPIC_API_KEY || unknownProducts.length === 0) {
-    // Mark unknowns as PREPARED (safer default for food store)
-    for (const product of unknownProducts) {
+    // Skip excluded products
+    if (shouldExcludeProduct(product.title)) {
       classified.push({
         ...product,
         category: "PREPARED",
       })
+      continue
     }
-    return classified
-  }
 
-  // Second pass: use Claude for ambiguous products (batch of max 20)
-  const batchSize = 20
-  for (let i = 0; i < unknownProducts.length; i += batchSize) {
-    const batch = unknownProducts.slice(i, i + batchSize)
+    // Get ingredient category
+    const category = getIngredientCategory(product.title)
 
-    try {
-      const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY })
-
-      const productList = batch.map((p, idx) => `${idx + 1}. ${p.title}`).join("\n")
-
-      const response = await anthropic.messages.create({
-        model: "claude-3-haiku-20240307",
-        max_tokens: 1000,
-        messages: [{
-          role: "user",
-          content: `Clasifica estos productos de una tienda de alimentos saludables.
-Para cada producto, determina:
-1. Categoría: "BASE" (ingrediente natural/crudo como aceites, harinas, granos, vegetales frescos, proteínas) o "PREPARED" (producto procesado/listo para consumir como galletas, jugos, snacks)
-2. Ingrediente base: solo para productos BASE, el ingrediente principal (ej: "aceite de oliva", "quinoa", "almendras")
-
-Productos:
-${productList}
-
-Responde SOLO con JSON válido en este formato:
-[
-  {"index": 1, "category": "BASE", "baseIngredient": "aceite de oliva"},
-  {"index": 2, "category": "PREPARED", "baseIngredient": null}
-]`
-        }]
+    if (category) {
+      classified.push({
+        ...product,
+        category: "BASE",
+        baseIngredient: category,
       })
-
-      const content = response.content[0]
-      if (content.type === "text") {
-        const jsonMatch = content.text.match(/\[[\s\S]*\]/)
-        if (jsonMatch) {
-          const results = JSON.parse(jsonMatch[0])
-
-          for (const result of results) {
-            const product = batch[result.index - 1]
-            if (product) {
-              classified.push({
-                ...product,
-                category: result.category === "BASE" ? "BASE" : "PREPARED",
-                baseIngredient: result.baseIngredient || undefined,
-              })
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error("AI classification error:", error)
-      // Fallback: mark as PREPARED
-      for (const product of batch) {
-        classified.push({
-          ...product,
-          category: "PREPARED",
-        })
-      }
+    } else {
+      classified.push({
+        ...product,
+        category: "PREPARED",
+      })
     }
   }
 
@@ -178,53 +221,18 @@ Responde SOLO con JSON válido en este formato:
 }
 
 /**
- * Extract base ingredient from product title using patterns
- */
-function extractBaseIngredient(title: string): string {
-  const lower = title.toLowerCase()
-
-  // Common patterns: "Aceite de X", "Harina de X", "Leche de X"
-  const patterns = [
-    /aceite\s+de\s+(\w+)/i,
-    /harina\s+de\s+(\w+)/i,
-    /leche\s+de\s+(\w+)/i,
-    /mantequilla\s+de\s+(\w+)/i,
-    /proteína\s+de\s+(\w+)/i,
-    /semillas?\s+de\s+(\w+)/i,
-  ]
-
-  for (const pattern of patterns) {
-    const match = lower.match(pattern)
-    if (match) {
-      return match[0]
-    }
-  }
-
-  // Return first significant words (remove brand names, sizes)
-  const words = lower
-    .replace(/\d+\s*(g|kg|ml|l|oz|lb)\b/gi, "") // Remove sizes
-    .replace(/\b(orgánico|organico|organic|natural|premium|extra|virgen)\b/gi, "") // Remove modifiers
-    .split(/\s+/)
-    .filter(w => w.length > 2)
-    .slice(0, 3)
-    .join(" ")
-    .trim()
-
-  return words || lower
-}
-
-/**
- * Group products by their base ingredient to avoid showing duplicates
- * Returns 1 primary product per group with alternatives hidden
+ * Group products by their base ingredient
+ * All "Aceite de Oliva" products go in one group
+ * All "Yogurt" products go in one group (regardless of flavor)
  */
 export function deduplicateProducts(products: ClassifiedProduct[]): ProductGroup[] {
   const groups = new Map<string, ClassifiedProduct[]>()
 
-  // Only group BASE products
+  // Only group BASE products with a baseIngredient
   const baseProducts = products.filter(p => p.category === "BASE" && p.baseIngredient)
 
   for (const product of baseProducts) {
-    const key = normalizeIngredientKey(product.baseIngredient!)
+    const key = product.baseIngredient!
 
     if (!groups.has(key)) {
       groups.set(key, [])
@@ -235,7 +243,7 @@ export function deduplicateProducts(products: ClassifiedProduct[]): ProductGroup
   const productGroups: ProductGroup[] = []
 
   for (const [key, groupProducts] of groups) {
-    // Sort by price (cheapest first) or by title length (shorter = simpler)
+    // Sort by price (cheapest first)
     groupProducts.sort((a, b) => {
       const priceA = a.variants?.[0]?.calculated_price?.calculated_amount || Infinity
       const priceB = b.variants?.[0]?.calculated_price?.calculated_amount || Infinity
@@ -247,7 +255,7 @@ export function deduplicateProducts(products: ClassifiedProduct[]): ProductGroup
 
     productGroups.push({
       baseIngredient: key,
-      displayName: formatDisplayName(primary.baseIngredient!),
+      displayName: formatDisplayName(key),
       primaryProduct: primary,
       alternatives,
       count: groupProducts.length,
@@ -257,21 +265,6 @@ export function deduplicateProducts(products: ClassifiedProduct[]): ProductGroup
   return productGroups
 }
 
-/**
- * Normalize ingredient name for grouping
- */
-function normalizeIngredientKey(ingredient: string): string {
-  return ingredient
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // Remove accents
-    .replace(/\s+/g, "_")
-    .trim()
-}
-
-/**
- * Format display name for UI
- */
 function formatDisplayName(ingredient: string): string {
   return ingredient
     .split(" ")
@@ -280,127 +273,45 @@ function formatDisplayName(ingredient: string): string {
 }
 
 /**
- * AI-powered recommendation engine that matches recipe ingredients
- * to the best available products in the store
+ * Find the best product match for a recipe ingredient
  */
-export async function recommendProducts(
-  ingredientNames: string[],
-  productGroups: ProductGroup[],
-  dietFilters: string[] = []
-): Promise<IngredientRecommendation[]> {
-  const recommendations: IngredientRecommendation[] = []
+function findBestMatch(
+  ingredientName: string,
+  productGroups: ProductGroup[]
+): ProductGroup | null {
+  const lowerIngredient = ingredientName.toLowerCase()
 
-  // Quick matching first
-  for (const ingredient of ingredientNames) {
-    const lowerIngredient = ingredient.toLowerCase()
+  // Direct category match
+  for (const group of productGroups) {
+    const keywords = INGREDIENT_CATEGORIES[group.baseIngredient] || [group.baseIngredient]
 
-    // Find matching product group
-    let bestMatch: ProductGroup | null = null
-    let bestScore = 0
-
-    for (const group of productGroups) {
-      const score = calculateMatchScore(lowerIngredient, group.baseIngredient)
-      if (score > bestScore && score >= 0.5) {
-        bestScore = score
-        bestMatch = group
+    for (const keyword of keywords) {
+      if (lowerIngredient.includes(keyword) || keyword.includes(lowerIngredient)) {
+        return group
       }
     }
-
-    recommendations.push({
-      ingredientName: ingredient,
-      matchedGroup: bestMatch,
-      confidence: bestScore,
-      reason: bestMatch
-        ? `Matched "${bestMatch.displayName}" with ${Math.round(bestScore * 100)}% confidence`
-        : "No matching product found",
-    })
   }
 
-  // Use AI for low-confidence matches
-  const lowConfidenceMatches = recommendations.filter(r => r.confidence < 0.7 && r.matchedGroup === null)
+  // Check valid ingredient matches
+  const ingredientWords = lowerIngredient.split(/\s+/).filter(w => w.length > 2)
 
-  if (ANTHROPIC_API_KEY && lowConfidenceMatches.length > 0 && productGroups.length > 0) {
-    try {
-      const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY })
-
-      const ingredientList = lowConfidenceMatches.map(r => r.ingredientName).join(", ")
-      const productList = productGroups.slice(0, 30).map(g => g.displayName).join(", ")
-
-      const response = await anthropic.messages.create({
-        model: "claude-3-haiku-20240307",
-        max_tokens: 500,
-        messages: [{
-          role: "user",
-          content: `Eres un asistente de cocina. Para cada ingrediente de receta, sugiere cuál producto de la tienda sería el mejor sustituto o equivalente.
-
-Ingredientes que necesito: ${ingredientList}
-
-Productos disponibles en la tienda: ${productList}
-
-Responde SOLO con JSON:
-[
-  {"ingredient": "nombre ingrediente", "product": "nombre producto exacto de la lista o null si no hay match", "reason": "breve explicación"}
-]`
-        }]
-      })
-
-      const content = response.content[0]
-      if (content.type === "text") {
-        const jsonMatch = content.text.match(/\[[\s\S]*\]/)
-        if (jsonMatch) {
-          const results = JSON.parse(jsonMatch[0])
-
-          for (const result of results) {
-            const rec = recommendations.find(r =>
-              r.ingredientName.toLowerCase() === result.ingredient?.toLowerCase()
-            )
-
-            if (rec && result.product) {
-              const matchedGroup = productGroups.find(g =>
-                g.displayName.toLowerCase() === result.product.toLowerCase()
-              )
-
-              if (matchedGroup) {
-                rec.matchedGroup = matchedGroup
-                rec.confidence = 0.8
-                rec.reason = result.reason || "AI recommendation"
-              }
-            }
-          }
+  for (const word of ingredientWords) {
+    const validMatches = VALID_INGREDIENT_MATCHES[word]
+    if (validMatches) {
+      for (const group of productGroups) {
+        const groupKeywords = INGREDIENT_CATEGORIES[group.baseIngredient] || [group.baseIngredient]
+        if (validMatches.some(match => groupKeywords.some(gk => gk.includes(match) || match.includes(gk)))) {
+          return group
         }
       }
-    } catch (error) {
-      console.error("AI recommendation error:", error)
     }
   }
 
-  return recommendations
+  return null
 }
 
 /**
- * Calculate match score between ingredient and product group
- */
-function calculateMatchScore(ingredient: string, productBase: string): number {
-  const ingredientWords = ingredient.split(/\s+/).filter(w => w.length > 2)
-  const productWords = productBase.split(/[_\s]+/).filter(w => w.length > 2)
-
-  let matches = 0
-  let total = ingredientWords.length
-
-  for (const iWord of ingredientWords) {
-    for (const pWord of productWords) {
-      if (iWord === pWord || iWord.includes(pWord) || pWord.includes(iWord)) {
-        matches++
-        break
-      }
-    }
-  }
-
-  return total > 0 ? matches / total : 0
-}
-
-/**
- * Get the best products for a recipe, using classification, deduplication, and recommendations
+ * Main function: Get smart product matches for recipe ingredients
  */
 export async function getSmartProductMatches(
   ingredientNames: string[],
@@ -426,8 +337,9 @@ export async function getSmartProductMatches(
     groupsCreated: number
   }
 }> {
+  console.log(`Processing ${allProducts.length} products for ${ingredientNames.length} ingredients...`)
+
   // Step 1: Classify all products
-  console.log(`Classifying ${allProducts.length} products...`)
   const classified = await classifyProducts(allProducts)
 
   const baseProducts = classified.filter(p => p.category === "BASE")
@@ -437,12 +349,9 @@ export async function getSmartProductMatches(
 
   // Step 2: Deduplicate to create product groups
   const groups = deduplicateProducts(classified)
-  console.log(`Created ${groups.length} product groups`)
+  console.log(`Created ${groups.length} product groups: ${groups.map(g => g.baseIngredient).join(", ")}`)
 
-  // Step 3: Get recommendations for ingredients
-  const recommendations = await recommendProducts(ingredientNames, groups, dietIds)
-
-  // Step 4: Build final product list
+  // Step 3: Match ingredients to product groups (1 product per ingredient category)
   const selectedProducts: Array<{
     id: string
     variantId: string
@@ -455,31 +364,36 @@ export async function getSmartProductMatches(
     alternativeCount: number
   }> = []
 
-  const usedGroupIds = new Set<string>()
+  const usedCategories = new Set<string>()
 
-  for (const rec of recommendations) {
+  for (const ingredient of ingredientNames) {
     if (selectedProducts.length >= maxProducts) break
-    if (!rec.matchedGroup) continue
-    if (usedGroupIds.has(rec.matchedGroup.baseIngredient)) continue
 
-    const primary = rec.matchedGroup.primaryProduct
+    const matchedGroup = findBestMatch(ingredient, groups)
 
-    if (primary.variants?.[0]) {
-      selectedProducts.push({
-        id: primary.id,
-        variantId: primary.variants[0].id,
-        title: primary.title,
-        handle: primary.handle,
-        thumbnail: primary.thumbnail,
-        quantity: "1 unidad",
-        price: primary.variants[0].calculated_price?.calculated_amount,
-        hasAlternatives: rec.matchedGroup.alternatives.length > 0,
-        alternativeCount: rec.matchedGroup.alternatives.length,
-      })
+    if (matchedGroup && !usedCategories.has(matchedGroup.baseIngredient)) {
+      const primary = matchedGroup.primaryProduct
 
-      usedGroupIds.add(rec.matchedGroup.baseIngredient)
+      if (primary.variants?.[0]) {
+        selectedProducts.push({
+          id: primary.id,
+          variantId: primary.variants[0].id,
+          title: primary.title,
+          handle: primary.handle,
+          thumbnail: primary.thumbnail,
+          quantity: "1 unidad",
+          price: primary.variants[0].calculated_price?.calculated_amount,
+          hasAlternatives: matchedGroup.alternatives.length > 0,
+          alternativeCount: matchedGroup.alternatives.length,
+        })
+
+        usedCategories.add(matchedGroup.baseIngredient)
+        console.log(`  Matched "${ingredient}" -> "${matchedGroup.baseIngredient}" (${matchedGroup.count} options)`)
+      }
     }
   }
+
+  console.log(`Selected ${selectedProducts.length} unique products`)
 
   return {
     products: selectedProducts,

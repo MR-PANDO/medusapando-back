@@ -104,6 +104,5 @@ ENV NODE_ENV=production
 # Expose port
 EXPOSE 9000
 
-# Run migrations and start the server
-ENTRYPOINT ["/app/medusa/.medusa/server/migrations.sh"]
+# Start the server
 CMD ["npm", "run", "start"]

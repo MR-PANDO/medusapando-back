@@ -3,6 +3,7 @@ import {
   validateAndTransformBody,
 } from "@medusajs/framework/http"
 import { z } from "zod"
+import { json } from "express"
 import {
   PostAdminCreateBrand,
   PostAdminUpdateBrand,
@@ -28,6 +29,12 @@ export default defineMiddlewares({
       additionalDataValidator: {
         brand_id: z.string().optional(),
       },
+    },
+    // Nutrition scan - allow large base64 images (up to 10MB)
+    {
+      matcher: "/admin/nutrition/*/scan",
+      method: "POST",
+      middlewares: [json({ limit: "10mb" })],
     },
   ],
 })

@@ -2,7 +2,6 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { RECIPE_MODULE } from "../../../../modules/recipe"
 import RecipeModuleService from "../../../../modules/recipe/service"
 import Anthropic from "@anthropic-ai/sdk"
-import { RecipeStatus } from "../../../../modules/recipe/models/recipe"
 
 const SPOONACULAR_API_KEY = process.env.SPOONACULAR_API_KEY || ""
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || ""
@@ -350,7 +349,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         tips: translated.tips || null,
         spoonacular_id: spoonacularId,
         generated_at: new Date(),
-        status: RecipeStatus.DRAFT, // New recipes start as draft
+        status: "draft", // New recipes start as draft
       }
 
       const recipe = await recipeModuleService.createRecipes(recipeData as any)

@@ -1,7 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { RECIPE_MODULE } from "../../../modules/recipe"
 import RecipeModuleService from "../../../modules/recipe/service"
-import { RecipeStatus } from "../../../modules/recipe/models/recipe"
 
 // GET /admin/recipes - List all recipes with status filter
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -93,7 +92,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     nutrition: nutrition || {},
     tips,
     generated_at: new Date(),
-    status: RecipeStatus.DRAFT,
+    status: "draft",
   } as any)
 
   res.json({ recipe })

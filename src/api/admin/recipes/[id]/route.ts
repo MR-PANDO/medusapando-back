@@ -1,7 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { RECIPE_MODULE } from "../../../../modules/recipe"
 import RecipeModuleService from "../../../../modules/recipe/service"
-import { RecipeStatus } from "../../../../modules/recipe/models/recipe"
 
 // GET /admin/recipes/:id - Get a single recipe with its products
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -53,7 +52,7 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
 
   try {
     // Check if trying to publish without products
-    if (status === RecipeStatus.PUBLISHED) {
+    if (status === "published") {
       const products = await recipeModuleService.listRecipeProducts({
         recipe_id: id,
       })

@@ -1,7 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { RECIPE_MODULE } from "../../../modules/recipe"
 import RecipeModuleService from "../../../modules/recipe/service"
-import { RecipeStatus } from "../../../modules/recipe/models/recipe"
 
 // GET /store/recipes - List published recipes with their products
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -13,7 +12,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   // Only fetch published recipes
   const filters: Record<string, any> = {
-    status: RecipeStatus.PUBLISHED,
+    status: "published",
   }
 
   const [recipes, count] = await recipeModuleService.listAndCountRecipes(

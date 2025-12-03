@@ -1,15 +1,16 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { RECIPE_MODULE } from "../../../../../modules/recipe"
 import RecipeModuleService from "../../../../../modules/recipe/service"
-import { RecipeStatus } from "../../../../../modules/recipe/models/recipe"
+
+const VALID_STATUSES = ["draft", "published", "disabled"]
 
 // PUT /admin/recipes/:id/status - Quick status update
 export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   const recipeModuleService: RecipeModuleService = req.scope.resolve(RECIPE_MODULE)
   const { id } = req.params
-  const { status } = req.body as { status: RecipeStatus }
+  const { status } = req.body as { status: string }
 
-  if (!status || !Object.values(RecipeStatus).includes(status)) {
+  if (!status || !VALID_STATUSES.includes(status)) {
     return res.status(400).json({
       error: "Invalid status. Must be one of: draft, published, disabled",
     })
@@ -17,7 +18,7 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
 
   try {
     // Check if trying to publish without products
-    if (status === RecipeStatus.PUBLISHED) {
+    if (status === "published") {
       const products = await recipeModuleService.listRecipeProducts({
         recipe_id: id,
       })

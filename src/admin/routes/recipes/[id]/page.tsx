@@ -60,6 +60,9 @@ const RecipeDetailPage = () => {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
+  // Ingredients expansion
+  const [showAllIngredients, setShowAllIngredients] = useState(false)
+
   // Product search
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<MedusaProduct[]>([])
@@ -321,15 +324,31 @@ const RecipeDetailPage = () => {
             </div>
 
             <div className="mb-4">
-              <Text className="font-medium mb-2">Ingredientes:</Text>
-              <ul className="list-disc list-inside text-ui-fg-subtle text-sm">
-                {recipe.ingredients?.slice(0, 5).map((ing, i) => (
+              <div className="flex items-center justify-between mb-2">
+                <Text className="font-medium">Ingredientes ({recipe.ingredients?.length || 0}):</Text>
+                {recipe.ingredients?.length > 5 && (
+                  <Button
+                    variant="secondary"
+                    size="small"
+                    onClick={() => setShowAllIngredients(!showAllIngredients)}
+                  >
+                    {showAllIngredients ? "Ver menos" : "Ver todos"}
+                  </Button>
+                )}
+              </div>
+              <ul className="list-disc list-inside text-ui-fg-subtle text-sm space-y-1 max-h-64 overflow-y-auto">
+                {(showAllIngredients ? recipe.ingredients : recipe.ingredients?.slice(0, 5))?.map((ing, i) => (
                   <li key={i}>{ing}</li>
                 ))}
-                {recipe.ingredients?.length > 5 && (
-                  <li>... y {recipe.ingredients.length - 5} más</li>
-                )}
               </ul>
+              {!showAllIngredients && recipe.ingredients?.length > 5 && (
+                <button
+                  onClick={() => setShowAllIngredients(true)}
+                  className="text-sm text-blue-600 hover:text-blue-700 mt-2 font-medium"
+                >
+                  ... y {recipe.ingredients.length - 5} ingredientes más
+                </button>
+              )}
             </div>
 
             {recipe.nutrition && (

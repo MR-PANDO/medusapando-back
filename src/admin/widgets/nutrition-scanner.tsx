@@ -1,8 +1,8 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
 import { DetailWidgetProps, AdminProduct } from "@medusajs/framework/types"
-import { Container, Heading, Text, Button, Badge, Toaster, toast } from "@medusajs/ui"
+import { Container, Heading, Text, Button, Badge, Toaster, toast, Input, Label } from "@medusajs/ui"
 import { useEffect, useState, useRef, useCallback } from "react"
-import { Camera, Upload, Trash2, RefreshCw, Check } from "lucide-react"
+import { Camera, Upload, Trash2, RefreshCw, Check, Pencil, Save, X, Plus } from "lucide-react"
 
 type NutritionData = {
   id: string
@@ -20,9 +20,18 @@ const NutritionScannerWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
   const [nutrition, setNutrition] = useState<NutritionData | null>(null)
   const [loading, setLoading] = useState(true)
   const [scanning, setScanning] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [showCamera, setShowCamera] = useState(false)
   const [videoReady, setVideoReady] = useState(false)
   const [stream, setStream] = useState<MediaStream | null>(null)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editedData, setEditedData] = useState<{
+    serving_size: string
+    servings_per_container: string
+    nutrition_data: Record<string, string>
+  } | null>(null)
+  const [newNutrientKey, setNewNutrientKey] = useState("")
+  const [newNutrientValue, setNewNutrientValue] = useState("")
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -56,6 +65,99 @@ const NutritionScannerWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
       }
     }
   }, [productId])
+
+  // Start editing mode
+  const startEditing = () => {
+    if (nutrition) {
+      setEditedData({
+        serving_size: nutrition.serving_size || "",
+        servings_per_container: nutrition.servings_per_container || "",
+        nutrition_data: { ...nutrition.nutrition_data }
+      })
+      setIsEditing(true)
+    }
+  }
+
+  // Cancel editing
+  const cancelEditing = () => {
+    setEditedData(null)
+    setIsEditing(false)
+    setNewNutrientKey("")
+    setNewNutrientValue("")
+  }
+
+  // Save edited data
+  const saveEdits = async () => {
+    if (!editedData || !nutrition) return
+
+    setSaving(true)
+    try {
+      const res = await fetch(`/admin/nutrition/${productId}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          serving_size: editedData.serving_size || null,
+          servings_per_container: editedData.servings_per_container || null,
+          nutrition_data: editedData.nutrition_data
+        }),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        setNutrition(data.nutrition)
+        toast.success("Información actualizada correctamente")
+        setIsEditing(false)
+        setEditedData(null)
+      } else {
+        toast.error("Error al guardar los cambios")
+      }
+    } catch (error) {
+      console.error("Error saving:", error)
+      toast.error("Error al guardar los cambios")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Update a nutrient value
+  const updateNutrientValue = (key: string, value: string) => {
+    if (!editedData) return
+    setEditedData({
+      ...editedData,
+      nutrition_data: {
+        ...editedData.nutrition_data,
+        [key]: value
+      }
+    })
+  }
+
+  // Delete a nutrient
+  const deleteNutrient = (key: string) => {
+    if (!editedData) return
+    const newData = { ...editedData.nutrition_data }
+    delete newData[key]
+    setEditedData({
+      ...editedData,
+      nutrition_data: newData
+    })
+  }
+
+  // Add new nutrient
+  const addNutrient = () => {
+    if (!editedData || !newNutrientKey.trim()) return
+
+    const key = newNutrientKey.trim().toLowerCase().replace(/\s+/g, "_")
+    setEditedData({
+      ...editedData,
+      nutrition_data: {
+        ...editedData.nutrition_data,
+        [key]: newNutrientValue.trim()
+      }
+    })
+    setNewNutrientKey("")
+    setNewNutrientValue("")
+  }
 
   // Start camera
   const startCamera = async () => {
@@ -218,6 +320,8 @@ const NutritionScannerWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
       if (res.ok) {
         toast.success("Información eliminada")
         setNutrition(null)
+        setIsEditing(false)
+        setEditedData(null)
       } else {
         toast.error("Error al eliminar")
       }
@@ -304,7 +408,7 @@ const NutritionScannerWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
       )}
 
       {/* Scan Buttons */}
-      {!showCamera && (
+      {!showCamera && !isEditing && (
         <div className="px-6 py-4">
           <div className="flex gap-3 flex-wrap">
             <Button
@@ -325,6 +429,14 @@ const NutritionScannerWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
             </Button>
             {nutrition && (
               <>
+                <Button
+                  variant="secondary"
+                  onClick={startEditing}
+                  disabled={scanning}
+                >
+                  <Pencil size={16} className="mr-2" />
+                  Editar
+                </Button>
                 <Button
                   variant="secondary"
                   onClick={fetchNutrition}
@@ -360,25 +472,85 @@ const NutritionScannerWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
         </div>
       )}
 
-      {/* Nutrition Data Display */}
+      {/* Edit Mode Buttons */}
+      {isEditing && (
+        <div className="px-6 py-4 bg-ui-bg-subtle">
+          <div className="flex gap-3 items-center">
+            <Text className="font-medium text-ui-fg-base">Modo Edición</Text>
+            <div className="flex gap-2 ml-auto">
+              <Button
+                variant="secondary"
+                onClick={cancelEditing}
+                disabled={saving}
+              >
+                <X size={16} className="mr-2" />
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                onClick={saveEdits}
+                disabled={saving}
+              >
+                {saving ? (
+                  <RefreshCw size={16} className="mr-2 animate-spin" />
+                ) : (
+                  <Save size={16} className="mr-2" />
+                )}
+                Guardar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Nutrition Data Display / Edit */}
       {nutrition && nutrition.nutrition_data && (
         <div className="px-6 py-4">
           {/* Serving Info */}
-          {(nutrition.serving_size || nutrition.servings_per_container) && (
-            <div className="mb-4 p-3 bg-ui-bg-subtle rounded-lg">
-              {nutrition.serving_size && (
-                <div className="flex justify-between text-sm">
-                  <Text className="font-medium">Tamaño de porción:</Text>
-                  <Text>{nutrition.serving_size}</Text>
-                </div>
-              )}
-              {nutrition.servings_per_container && (
-                <div className="flex justify-between text-sm mt-1">
-                  <Text className="font-medium">Porciones por envase:</Text>
-                  <Text>{nutrition.servings_per_container}</Text>
-                </div>
-              )}
+          {isEditing && editedData ? (
+            <div className="mb-4 p-3 bg-ui-bg-subtle rounded-lg space-y-3">
+              <div>
+                <Label htmlFor="serving_size" className="text-sm font-medium">
+                  Tamaño de porción
+                </Label>
+                <Input
+                  id="serving_size"
+                  value={editedData.serving_size}
+                  onChange={(e) => setEditedData({ ...editedData, serving_size: e.target.value })}
+                  placeholder="Ej: 1 taza (240ml)"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="servings_per_container" className="text-sm font-medium">
+                  Porciones por envase
+                </Label>
+                <Input
+                  id="servings_per_container"
+                  value={editedData.servings_per_container}
+                  onChange={(e) => setEditedData({ ...editedData, servings_per_container: e.target.value })}
+                  placeholder="Ej: 8"
+                  className="mt-1"
+                />
+              </div>
             </div>
+          ) : (
+            (nutrition.serving_size || nutrition.servings_per_container) && (
+              <div className="mb-4 p-3 bg-ui-bg-subtle rounded-lg">
+                {nutrition.serving_size && (
+                  <div className="flex justify-between text-sm">
+                    <Text className="font-medium">Tamaño de porción:</Text>
+                    <Text>{nutrition.serving_size}</Text>
+                  </div>
+                )}
+                {nutrition.servings_per_container && (
+                  <div className="flex justify-between text-sm mt-1">
+                    <Text className="font-medium">Porciones por envase:</Text>
+                    <Text>{nutrition.servings_per_container}</Text>
+                  </div>
+                )}
+              </div>
+            )
           )}
 
           {/* Nutrition Facts Table */}
@@ -387,20 +559,74 @@ const NutritionScannerWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
               <Text className="font-bold text-lg">Datos Nutricionales</Text>
             </div>
             <div className="divide-y">
-              {Object.entries(nutrition.nutrition_data).map(([key, value]) => (
-                <div
-                  key={key}
-                  className="flex justify-between px-3 py-2 hover:bg-ui-bg-subtle-hover"
-                >
-                  <Text className="text-sm">{formatKey(key)}</Text>
-                  <Text className="text-sm font-medium">{value}</Text>
-                </div>
-              ))}
+              {isEditing && editedData ? (
+                <>
+                  {Object.entries(editedData.nutrition_data).map(([key, value]) => (
+                    <div
+                      key={key}
+                      className="flex items-center gap-2 px-3 py-2"
+                    >
+                      <Text className="text-sm min-w-[120px]">{formatKey(key)}</Text>
+                      <Input
+                        value={value}
+                        onChange={(e) => updateNutrientValue(key, e.target.value)}
+                        className="flex-1"
+                        size="small"
+                      />
+                      <Button
+                        variant="danger"
+                        size="small"
+                        onClick={() => deleteNutrient(key)}
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                    </div>
+                  ))}
+                  {/* Add New Nutrient */}
+                  <div className="px-3 py-3 bg-ui-bg-subtle">
+                    <Text className="text-sm font-medium mb-2">Agregar nutriente</Text>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        placeholder="Nombre (ej: fibra)"
+                        value={newNutrientKey}
+                        onChange={(e) => setNewNutrientKey(e.target.value)}
+                        className="flex-1"
+                        size="small"
+                      />
+                      <Input
+                        placeholder="Valor (ej: 5g)"
+                        value={newNutrientValue}
+                        onChange={(e) => setNewNutrientValue(e.target.value)}
+                        className="flex-1"
+                        size="small"
+                      />
+                      <Button
+                        variant="secondary"
+                        size="small"
+                        onClick={addNutrient}
+                        disabled={!newNutrientKey.trim()}
+                      >
+                        <Plus size={14} />
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                Object.entries(nutrition.nutrition_data).map(([key, value]) => (
+                  <div
+                    key={key}
+                    className="flex justify-between px-3 py-2 hover:bg-ui-bg-subtle-hover"
+                  >
+                    <Text className="text-sm">{formatKey(key)}</Text>
+                    <Text className="text-sm font-medium">{value}</Text>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
           {/* Scan date */}
-          {nutrition.scanned_at && (
+          {!isEditing && nutrition.scanned_at && (
             <Text className="text-ui-fg-muted text-xs mt-3">
               Escaneado: {new Date(nutrition.scanned_at).toLocaleString()}
             </Text>

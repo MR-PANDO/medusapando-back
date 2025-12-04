@@ -75,45 +75,45 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
             imageContent,
             {
               type: "text",
-              text: `Analiza esta imagen de una etiqueta de información nutricional de un producto alimenticio.
+              text: `Analiza esta imagen de una etiqueta de información nutricional.
 
-Extrae TODA la información que puedas ver en la etiqueta y devuélvela en formato JSON.
+Extrae la información y devuélvela en formato JSON con esta estructura EXACTA:
 
-El JSON debe tener esta estructura:
 {
-  "serving_size": "tamaño de la porción (ej: '1 taza (300g)', '100g')",
-  "servings_per_container": "porciones por envase (ej: '6', 'aproximadamente 8')",
+  "serving_size": "tamaño de porción",
+  "servings_per_container": "porciones por envase",
   "nutrition_data": {
-    "calorias": "valor con unidad si aplica",
-    "calorias_de_grasa": "valor si está disponible",
-    "grasa_total": "valor con % si está disponible",
-    "grasa_saturada": "valor",
-    "grasa_trans": "valor",
-    "colesterol": "valor",
-    "sodio": "valor",
-    "carbohidratos_totales": "valor",
-    "fibra_dietetica": "valor",
-    "azucares": "valor",
-    "azucares_anadidos": "valor si está disponible",
-    "proteina": "valor",
-    "vitamina_a": "valor % si está disponible",
-    "vitamina_c": "valor % si está disponible",
-    "vitamina_d": "valor si está disponible",
-    "calcio": "valor",
-    "hierro": "valor",
-    "potasio": "valor si está disponible"
-  },
-  "raw_text": "todo el texto visible en la etiqueta"
+    "calorias": "100 kcal | 30 kcal",
+    "grasa_total": "5g | 1.5g",
+    "proteina": "3g | 1g"
+  }
 }
 
-IMPORTANTE:
-- Si un campo no está visible en la etiqueta, omítelo del JSON (no pongas null ni cadena vacía)
-- Incluye CUALQUIER otro nutriente que veas aunque no esté en la lista anterior
-- Mantén los valores exactamente como aparecen (con unidades: mg, g, %, etc.)
-- Si hay información adicional como "% Valor Diario", inclúyela
-- El campo nutrition_data debe ser flexible - agrega todos los campos que veas
+REGLAS CRÍTICAS - LEE CON CUIDADO:
 
-Responde SOLO con el JSON, sin explicaciones adicionales.`
+1. CADA nutriente debe ser UN SOLO CAMPO con ambos valores separados por " | "
+   - CORRECTO: "azucares_totales": "1.7g | 1.5g"
+   - INCORRECTO: "azucares_totales_por_100g": "1.7g" (NO crear campos separados)
+   - INCORRECTO: "azucares_totales_por_porcion": "1.5g" (NO crear campos separados)
+
+2. El formato SIEMPRE es: "nombre_nutriente": "valor_100g | valor_porcion"
+   - Primer valor = Por 100g
+   - Segundo valor = Por porción
+   - Separados por " | " (espacio, barra vertical, espacio)
+
+3. NUNCA incluyas "por_100g" o "por_porcion" en el NOMBRE del campo
+   - CORRECTO: "calcio": "85mg | 77mg"
+   - INCORRECTO: "calcio_por_100g": "85mg"
+
+4. Nombres de nutrientes permitidos (solo estos, en minúsculas con guiones bajos):
+   calorias, grasa_total, grasa_saturada, grasa_trans, colesterol, sodio,
+   carbohidratos_totales, fibra_dietetica, azucares_totales, azucares_anadidos,
+   proteina, vitamina_a, vitamina_c, vitamina_d, vitamina_e, vitamina_b12,
+   calcio, hierro, potasio, magnesio, zinc, fosforo
+
+5. Si solo hay una columna en la etiqueta, pon solo ese valor sin " | "
+
+Responde SOLO con el JSON válido, sin explicaciones.`
             }
           ],
         },
@@ -137,6 +137,96 @@ Responde SOLO con el JSON, sin explicaciones adicionales.`
         }
 
         parsedData = JSON.parse(jsonStr)
+
+        // Post-process nutrition_data to merge duplicated fields into single entries
+        if (parsedData.nutrition_data) {
+          const cleanedData: Record<string, string> = {}
+          const nutritionData = parsedData.nutrition_data
+
+          // Collect all base nutrient names and their values
+          const nutrientValues: Record<string, { por100g?: string; porPorcion?: string; combined?: string }> = {}
+
+          for (const [key, value] of Object.entries(nutritionData)) {
+            const strValue = String(value).trim()
+            const lowerKey = key.toLowerCase()
+
+            // Detect various patterns for "por 100g" and "por porcion" suffixes
+            const por100gPatterns = ["_por_100g", "_por_100_g", "_100g", "_por100g"]
+            const porPorcionPatterns = ["_por_porcion", "_por_porción", "_porcion", "_porción"]
+
+            let baseName = lowerKey
+            let isPor100g = false
+            let isPorPorcion = false
+
+            // Check for por_100g patterns
+            for (const pattern of por100gPatterns) {
+              if (lowerKey.endsWith(pattern)) {
+                baseName = lowerKey.slice(0, -pattern.length)
+                isPor100g = true
+                break
+              }
+            }
+
+            // Check for por_porcion patterns
+            if (!isPor100g) {
+              for (const pattern of porPorcionPatterns) {
+                if (lowerKey.endsWith(pattern)) {
+                  baseName = lowerKey.slice(0, -pattern.length)
+                  isPorPorcion = true
+                  break
+                }
+              }
+            }
+
+            // Initialize nutrient entry if needed
+            if (!nutrientValues[baseName]) {
+              nutrientValues[baseName] = {}
+            }
+
+            if (isPor100g) {
+              nutrientValues[baseName].por100g = strValue
+            } else if (isPorPorcion) {
+              nutrientValues[baseName].porPorcion = strValue
+            } else {
+              // This is either a combined value (with |) or needs to be checked
+              if (strValue.includes("|")) {
+                nutrientValues[baseName].combined = strValue
+              } else {
+                // If we already have this base nutrient, this might be a duplicate
+                // Store as combined for now
+                if (!nutrientValues[baseName].combined) {
+                  nutrientValues[baseName].combined = strValue
+                }
+              }
+            }
+          }
+
+          // Build final cleaned data
+          for (const [nutrient, values] of Object.entries(nutrientValues)) {
+            // Priority 1: If we have a properly formatted combined value with |
+            if (values.combined && values.combined.includes("|")) {
+              cleanedData[nutrient] = values.combined
+            }
+            // Priority 2: If we have both por100g and porPorcion, combine them
+            else if (values.por100g && values.porPorcion) {
+              cleanedData[nutrient] = `${values.por100g} | ${values.porPorcion}`
+            }
+            // Priority 3: If we only have por100g
+            else if (values.por100g) {
+              cleanedData[nutrient] = values.por100g
+            }
+            // Priority 4: If we only have porPorcion
+            else if (values.porPorcion) {
+              cleanedData[nutrient] = `- | ${values.porPorcion}`
+            }
+            // Priority 5: Use combined value as-is
+            else if (values.combined) {
+              cleanedData[nutrient] = values.combined
+            }
+          }
+
+          parsedData.nutrition_data = cleanedData
+        }
       } catch (parseError) {
         console.error("Failed to parse Claude response as JSON:", textContent.text)
         // Store raw text if JSON parsing fails

@@ -32,6 +32,10 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/nutrition",
     },
+    // Analytics Module - Page views and sales tracking
+    {
+      resolve: "./src/modules/analytics",
+    },
     // MinIO/S3 File Storage
     {
       resolve: "@medusajs/medusa/file",

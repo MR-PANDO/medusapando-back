@@ -12,7 +12,8 @@
       "Bash(dir:*)",
       "Bash(ls:*)",
       "Bash(cat:*)",
-      "Bash(del \"d:\\Projects\\vitaintegral-store\\medusapando-back\\src\\modules\\nutrition\\migrations\\Migration20251203131500.ts\")"
+      "Bash(del \"d:\\Projects\\vitaintegral-store\\medusapando-back\\src\\modules\\nutrition\\migrations\\Migration20251203131500.ts\")",
+      "Bash(del \"d:\\Projects\\vitaintegral-store\\medusapando-back\\src\\modules\\analytics\\migrations\\Migration20251207120000.ts\")"
     ],
     "deny": [],
     "ask": []

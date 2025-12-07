@@ -2450,7 +2450,7 @@
     fs-extra "11.2.0"
     umzug "3.8.2"
 
-"@mikro-orm/postgresql@^6.4.16", "@mikro-orm/postgresql@6.4.16", "@mikro-orm/postgresql@6.4.3":
+"@mikro-orm/postgresql@^6.4.16":
   version "6.4.16"
   resolved "https://registry.npmjs.org/@mikro-orm/postgresql/-/postgresql-6.4.16.tgz"
   integrity sha512-i14CvyLrtMhQJMk/X3xTT2Mgc8j0VtSWPqhKBN+euiPxbee4u5k39TlJAly72k3luknFBCzpKCh3ZNSGDZ+j4Q==

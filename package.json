@@ -23,6 +23,11 @@
     "test:integration:modules": "TEST_TYPE=integration:modules NODE_OPTIONS=--experimental-vm-modules jest --silent=false --runInBand --forceExit",
     "test:unit": "TEST_TYPE=unit NODE_OPTIONS=--experimental-vm-modules jest --silent --runInBand --forceExit"
   },
+  "overrides": {
+    "@rokmohar/medusa-plugin-meilisearch": {
+      "@mikro-orm/postgresql": "$@mikro-orm/postgresql"
+    }
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",
     "@medusajs/admin-sdk": "2.12.1",

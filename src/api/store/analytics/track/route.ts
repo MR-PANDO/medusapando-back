@@ -22,7 +22,7 @@ export async function POST(
       return res.status(400).json({ error: "session_id and page_path are required" })
     }
 
-    const pageView = await analyticsService.createPageViews({
+    const [pageView] = await (analyticsService as any).createPageViews([{
       session_id,
       page_path,
       referrer: referrer || null,
@@ -30,7 +30,7 @@ export async function POST(
       country_code: country_code || null,
       customer_id: customer_id || null,
       viewed_at: new Date(),
-    })
+    }])
 
     return res.status(201).json({ success: true, id: pageView.id })
   } catch (error: any) {

@@ -28,22 +28,21 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       getUniqueVisitors(analyticsService, monthStart),
     ])
 
-    // Get top 10 best-selling products
-    const { data: topProducts } = await query.graph({
-      entity: "order_item",
+    // Get top 10 best-selling products from orders
+    const { data: ordersWithItems } = await query.graph({
+      entity: "order",
       fields: [
-        "variant.product.id",
-        "variant.product.title",
-        "variant.product.thumbnail",
-        "variant.product.handle",
-        "quantity",
+        "status",
+        "items.quantity",
+        "items.variant.product.id",
+        "items.variant.product.title",
+        "items.variant.product.thumbnail",
+        "items.variant.product.handle",
       ],
       filters: {
-        order: {
-          status: { $nin: ["canceled", "archived"] }
-        }
+        status: { $nin: ["canceled", "archived"] }
       },
-    })
+    }) as { data: any[] }
 
     // Aggregate product sales
     const productSales: Record<string, {
@@ -54,20 +53,22 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       total_quantity: number
     }> = {}
 
-    for (const item of topProducts) {
-      const product = item.variant?.product
-      if (!product?.id) continue
+    for (const order of ordersWithItems) {
+      for (const item of order.items || []) {
+        const product = item.variant?.product
+        if (!product?.id) continue
 
-      if (!productSales[product.id]) {
-        productSales[product.id] = {
-          id: product.id,
-          title: product.title,
-          thumbnail: product.thumbnail,
-          handle: product.handle,
-          total_quantity: 0,
+        if (!productSales[product.id]) {
+          productSales[product.id] = {
+            id: product.id,
+            title: product.title,
+            thumbnail: product.thumbnail,
+            handle: product.handle,
+            total_quantity: 0,
+          }
         }
+        productSales[product.id].total_quantity += item.quantity || 0
       }
-      productSales[product.id].total_quantity += item.quantity || 0
     }
 
     const topSellingProducts = Object.values(productSales)

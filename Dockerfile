@@ -92,7 +92,7 @@ COPY --from=builder /app/medusa/.medusa ./.medusa
 WORKDIR /app/medusa/.medusa/server
 
 # Install production dependencies
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --legacy-peer-deps
 
 # Set NODE_ENV
 ENV NODE_ENV=production

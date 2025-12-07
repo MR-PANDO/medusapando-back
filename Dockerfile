@@ -14,7 +14,7 @@ COPY . .
 RUN rm -rf node_modules
 
 # Install dependencies
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # Set dummy env vars for build
 ENV DATABASE_URL=postgres://localhost:5432/medusa \

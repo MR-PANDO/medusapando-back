@@ -21,7 +21,7 @@ module.exports = (0, utils_1.defineConfig)({
     },
     modules: [
         // Brand Module
-        {
+        /*{
             resolve: "./src/modules/brand",
         },
         // Recipe Module
@@ -34,7 +34,7 @@ module.exports = (0, utils_1.defineConfig)({
         },
         {
             resolve: "./src/modules/analytics",
-        },
+        },*/
         // MinIO/S3 File Storage
         {
             resolve: "@medusajs/medusa/file",

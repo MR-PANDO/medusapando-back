@@ -60,6 +60,7 @@ module.exports = (0, utils_1.defineConfig)({
             },
         },
         // Meilisearch
+        /*
         {
             resolve: "@rokmohar/medusa-plugin-meilisearch",
             options: {
@@ -108,6 +109,6 @@ module.exports = (0, utils_1.defineConfig)({
                     },
                 },
             },
-        },
+        },*/
     ],
 });

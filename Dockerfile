@@ -101,4 +101,4 @@ ENV NODE_ENV=production
 EXPOSE 9000
 
 # Start the server
-CMD ["npm", "run", "start"]
+CMD ["sh", "-c", "npx medusa db:migrate && npm run start"]

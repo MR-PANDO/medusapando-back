@@ -1,5 +1,5 @@
 # Build stage
-# Force rebuild: 2025-11-30-retry
+# Force rebuild: 2026-02-25-fix-meilisearch
 FROM node:20-alpine AS builder
 
 WORKDIR /app/medusa

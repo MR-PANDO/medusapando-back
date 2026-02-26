@@ -1,0 +1,61 @@
+# Worker Dockerfile - uses same build as main backend
+# Force rebuild: worker-mode
+FROM node:20-alpine AS builder
+
+WORKDIR /app/medusa
+
+# Install dependencies for native modules
+RUN apk add --no-cache python3 make g++
+
+# Copy everything
+COPY . .
+
+# Remove node_modules if exists
+RUN rm -rf node_modules
+
+# Install dependencies
+RUN npm ci --legacy-peer-deps
+
+# Set dummy env vars for build
+ENV DATABASE_URL=postgres://localhost:5432/medusa \
+    STORE_CORS=http://localhost:8000 \
+    ADMIN_CORS=http://localhost:9000 \
+    AUTH_CORS=http://localhost:9000 \
+    JWT_SECRET=build-secret \
+    COOKIE_SECRET=build-secret \
+    WORKER_MODE=worker \
+    DISABLE_ADMIN=true
+
+# Increase Node memory for build
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
+# Build the application
+RUN npm run build
+
+# Production stage
+FROM node:20-alpine
+
+WORKDIR /app/medusa
+
+# Install dependencies for native modules
+RUN apk add --no-cache python3 make g++
+
+# Create .medusa directory
+RUN mkdir -p .medusa
+
+# Copy built application from builder
+COPY --from=builder /app/medusa/.medusa ./.medusa
+
+# Change to server directory
+WORKDIR /app/medusa/.medusa/server
+
+# Install production dependencies
+RUN npm ci --omit=dev --legacy-peer-deps
+
+# Force worker mode
+ENV NODE_ENV=production
+ENV WORKER_MODE=worker
+ENV DISABLE_ADMIN=true
+
+# Start as worker
+CMD ["sh", "-c", "npx medusa db:migrate && WORKER_MODE=worker npm run start"]

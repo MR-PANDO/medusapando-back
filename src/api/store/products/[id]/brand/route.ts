@@ -16,7 +16,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     const result = await client.query(
       `SELECT b.id, b.name, b.handle
        FROM brand b
-       INNER JOIN product_product_brandmodule_brand pb ON b.id = pb.brand_id
+       INNER JOIN product_product_brand_brand pb ON b.id = pb.brand_id
        WHERE pb.product_id = $1 AND pb.deleted_at IS NULL
        LIMIT 1`,
       [id]

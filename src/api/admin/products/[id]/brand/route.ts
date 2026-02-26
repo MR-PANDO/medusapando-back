@@ -16,7 +16,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     await client.connect()
 
     const linkResult = await client.query(
-      "SELECT brand_id FROM product_product_brandmodule_brand WHERE product_id = $1 AND deleted_at IS NULL LIMIT 1",
+      "SELECT brand_id FROM product_product_brand_brand WHERE product_id = $1 AND deleted_at IS NULL LIMIT 1",
       [id]
     )
 
@@ -57,7 +57,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
     // Remove existing link for this product
     await client.query(
-      "DELETE FROM product_product_brandmodule_brand WHERE product_id = $1",
+      "DELETE FROM product_product_brand_brand WHERE product_id = $1",
       [id]
     )
 
@@ -66,7 +66,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       const linkId = `pbrand_${Date.now().toString(36).toUpperCase()}${crypto.randomBytes(8).toString("hex").toUpperCase()}`.substring(0, 30)
 
       await client.query(
-        "INSERT INTO product_product_brandmodule_brand (id, product_id, brand_id, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW())",
+        "INSERT INTO product_product_brand_brand (id, product_id, brand_id, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW())",
         [linkId, id, brand_id]
       )
 

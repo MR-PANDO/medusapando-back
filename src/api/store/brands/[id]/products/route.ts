@@ -18,7 +18,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
     // Get product IDs for this brand
     const linksResult = await client.query(
-      `SELECT product_id FROM product_product_brandmodule_brand
+      `SELECT product_id FROM product_product_brand_brand
        WHERE brand_id = $1 AND deleted_at IS NULL`,
       [brandId]
     )

@@ -18,7 +18,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     await client.connect()
 
     const result = await client.query(
-      "SELECT product_id, brand_id FROM product_product_brandmodule_brand WHERE deleted_at IS NULL"
+      "SELECT product_id, brand_id FROM product_product_brand_brand WHERE deleted_at IS NULL"
     )
 
     await client.end()

@@ -84,7 +84,17 @@ async function main() {
     },
     body: JSON.stringify({
       searchableAttributes: ['title', 'description', 'variant_sku', 'handle'],
-      displayedAttributes: ['id', 'title', 'description', 'variant_sku', 'thumbnail', 'handle', 'variant_id'],
+      displayedAttributes: ['id', 'title', 'description', 'variant_sku', 'thumbnail', 'handle', 'variant_id', 'sales_count'],
+      sortableAttributes: ['sales_count'],
+      rankingRules: [
+        'words',
+        'typo',
+        'proximity',
+        'attribute',
+        'sort',
+        'exactness',
+        'sales_count:desc',
+      ],
     }),
   });
   console.log('Settings response:', settings.status);
@@ -98,14 +108,15 @@ async function main() {
   const client = new Client({ connectionString: DATABASE_URL });
   await client.connect();
 
-  // Get all published products with their variants
+  // Get all published products with their variants and sales count
   const productsResult = await client.query(`
     SELECT
       p.id,
       p.title,
       p.description,
       p.handle,
-      p.thumbnail
+      p.thumbnail,
+      COALESCE((p.metadata->>'sales_count')::int, 0) as sales_count
     FROM product p
     WHERE p.deleted_at IS NULL
     ORDER BY p.created_at DESC
@@ -145,6 +156,7 @@ async function main() {
       thumbnail: product.thumbnail || '',
       variant_id: variant ? variant.variant_id : '',
       variant_sku: variant ? variant.sku || '' : '',
+      sales_count: parseInt(product.sales_count) || 0,
     };
   });
 
@@ -153,7 +165,7 @@ async function main() {
 
   for (let i = 0; i < documents.length; i += BATCH_SIZE) {
     const batch = documents.slice(i, i + BATCH_SIZE);
-    const result = await fetch(`${MEILISEARCH_HOST}/indexes/products/documents`, {
+    const result = await fetch(`${MEILISEARCH_HOST}/indexes/products/documents?primaryKey=id`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${MEILISEARCH_API_KEY}`,

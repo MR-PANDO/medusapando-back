@@ -83,7 +83,7 @@ const RecipeDetailPage = () => {
         setRecipe(data.recipe)
       } else {
         toast.error("Recipe not found")
-        navigate("/app/recipes")
+        navigate("/recipes")
       }
     } catch (error) {
       console.error("Error fetching recipe:", error)
@@ -206,7 +206,7 @@ const RecipeDetailPage = () => {
       })
       if (res.ok) {
         toast.success("Recipe deleted")
-        navigate("/app/recipes")
+        navigate("/recipes")
       } else {
         toast.error("Error deleting recipe")
       }
@@ -247,7 +247,7 @@ const RecipeDetailPage = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-x-4">
-          <Button variant="secondary" onClick={() => navigate("/app/recipes")}>
+          <Button variant="secondary" onClick={() => navigate("/recipes")}>
             <ArrowLeft size={16} className="mr-2" />
             Volver
           </Button>

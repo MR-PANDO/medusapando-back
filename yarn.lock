@@ -6465,6 +6465,11 @@ cjs-module-lexer@^1.0.0, cjs-module-lexer@^1.2.2:
   resolved "https://registry.npmjs.org/cjs-module-lexer/-/cjs-module-lexer-1.4.3.tgz"
   integrity sha512-9z8TZaGM1pfswYeXrUpzPrkx8UnWYdhJclsiYMm6x/w5+nN+8Tf/LnAgfLGQCm59qAOxU8WwHEq2vNwF6i4j+Q==
 
+claude@^0.1.1:
+  version "0.1.1"
+  resolved "https://registry.npmjs.org/claude/-/claude-0.1.1.tgz"
+  integrity sha512-j7oSibqQdIODNhkI1sEJzHMiPsF43L/GqNbcA+eDDyGM10+x2sH9NW/PK6vM3z0J2tLDKMBcc5ZjVaoRinhuCA==
+
 clean-stack@^3.0.0:
   version "3.0.1"
   resolved "https://registry.npmjs.org/clean-stack/-/clean-stack-3.0.1.tgz"

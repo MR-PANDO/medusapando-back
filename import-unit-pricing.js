@@ -23,7 +23,7 @@ const WOO_CONFIG = {
 };
 
 // PostgreSQL Configuration
-const DATABASE_URL = 'postgres://postgres:h17yFs2z47Lg0x0uZJUXtBFiNyj4JKsu3M5rTrjrn4VaK2wFMLwieKaVZGpe3QbM@192.168.111.6:5432/postgres';
+const DATABASE_URL = 'postgres://postgres:ACvOM05Mcw8ILPDhprD3FOW67PYTcjGFxQTXro1TpSYSzQNRg4hcf8s13Tgi6q2L@192.168.111.16:5432/medusa?sslmode=disable';
 
 // Unit type mapping
 const UNIT_PATTERNS = [

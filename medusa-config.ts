@@ -61,7 +61,7 @@ module.exports = defineConfig({
       },
     },
     // Meilisearch
-    /*{
+    {
       resolve: "@rokmohar/medusa-plugin-meilisearch",
       options: {
         config: {
@@ -109,7 +109,7 @@ module.exports = defineConfig({
           },
         },
       },
-    },*/
+    },
   ],
   
 });

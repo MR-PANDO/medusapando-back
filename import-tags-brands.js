@@ -24,7 +24,7 @@ const WOO_CONFIG = {
 };
 
 // PostgreSQL Configuration
-const DATABASE_URL = 'postgres://postgres:h17yFs2z47Lg0x0uZJUXtBFiNyj4JKsu3M5rTrjrn4VaK2wFMLwieKaVZGpe3QbM@192.168.111.6:5432/postgres';
+const DATABASE_URL = 'postgres://postgres:ACvOM05Mcw8ILPDhprD3FOW67PYTcjGFxQTXro1TpSYSzQNRg4hcf8s13Tgi6q2L@192.168.111.16:5432/medusa?sslmode=disable';
 
 /**
  * Fetch from WooCommerce API
@@ -314,14 +314,14 @@ async function main() {
 
       // Check if link already exists
       const existingLink = await client.query(
-        'SELECT 1 FROM product_product_brandmodule_brand WHERE product_id = $1 AND brand_id = $2',
+        'SELECT 1 FROM product_product_brand_brand WHERE product_id = $1 AND brand_id = $2',
         [medusaProductId, medusaBrandId]
       );
 
       if (existingLink.rows.length === 0) {
         const linkId = generateId('pbrand');
         await client.query(
-          'INSERT INTO product_product_brandmodule_brand (id, product_id, brand_id, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW())',
+          'INSERT INTO product_product_brand_brand (id, product_id, brand_id, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW())',
           [linkId, medusaProductId, medusaBrandId]
         );
         brandLinksCreated++;

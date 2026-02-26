@@ -9,7 +9,7 @@ const { Client } = require('pg');
 const { MeiliSearch } = require('meilisearch');
 
 // Configuration
-const DATABASE_URL = process.env.DATABASE_URL || 'postgres://postgres:h17yFs2z47Lg0x0uZJUXtBFiNyj4JKsu3M5rTrjrn4VaK2wFMLwieKaVZGpe3QbM@192.168.111.6:5432/postgres';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgres://postgres:ACvOM05Mcw8ILPDhprD3FOW67PYTcjGFxQTXro1TpSYSzQNRg4hcf8s13Tgi6q2L@192.168.111.6:5432/medusa';
 const MEILISEARCH_HOST = process.env.MEILISEARCH_HOST || 'https://search.nutrimercados.com';
 const MEILISEARCH_API_KEY = process.env.MEILISEARCH_API_KEY || 'RlQ1EQ37q48yiOsBUt3GahLjyj6wm7Zg';
 

@@ -60,8 +60,8 @@ module.exports = defineConfig({
         ],
       },
     },
-    // Meilisearch - temporarily disabled until routing is fixed
-    /*{
+    // Meilisearch
+    {
       resolve: "@rokmohar/medusa-plugin-meilisearch",
       options: {
         config: {
@@ -109,7 +109,7 @@ module.exports = defineConfig({
           },
         },
       },
-    },*/
+    },
   ],
   
 });

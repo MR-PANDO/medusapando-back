@@ -77,7 +77,7 @@ class SeoModuleService extends MedusaService({
     const { resource_type, resource_id, ...fields } = input
 
     // Look for existing record
-    const [existing] = await this.listSeoMetadatas(
+    const existing = await this.listSeoMetadatas(
       {
         resource_type,
         resource_id,
@@ -85,13 +85,14 @@ class SeoModuleService extends MedusaService({
       { take: 1 }
     )
 
-    if (existing) {
+    if (existing && existing.length > 0) {
+      const record = existing[0]
       // Merge fields
-      const merged = { ...existing, ...fields, resource_type, resource_id }
+      const merged = { ...record, ...fields, resource_type, resource_id }
       const scores = this.calculateScores(merged)
 
       const updated = await this.updateSeoMetadatas({
-        id: existing.id,
+        id: record.id,
         ...fields,
         ...scores,
       })
@@ -99,8 +100,20 @@ class SeoModuleService extends MedusaService({
       return updated
     }
 
-    // Create new
-    const newData = { resource_type, resource_id, ...fields }
+    // Create new - provide defaults for nullable json fields
+    const newData = {
+      resource_type,
+      resource_id,
+      seo_keywords: [],
+      structured_data_json: {},
+      hreflang_entries: [],
+      aeo_faqs: [],
+      aeo_howto_steps: [],
+      geo_citations: [],
+      geo_key_attributes: [],
+      sxo_internal_links: [],
+      ...fields,
+    }
     const scores = this.calculateScores(newData)
 
     const created = await this.createSeoMetadatas({

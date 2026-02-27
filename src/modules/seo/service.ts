@@ -95,7 +95,7 @@ class SeoModuleService extends MedusaService({
         id: record.id,
         ...fields,
         ...scores,
-      })
+      } as any)
 
       return updated
     }
@@ -104,14 +104,6 @@ class SeoModuleService extends MedusaService({
     const newData = {
       resource_type,
       resource_id,
-      seo_keywords: [],
-      structured_data_json: {},
-      hreflang_entries: [],
-      aeo_faqs: [],
-      aeo_howto_steps: [],
-      geo_citations: [],
-      geo_key_attributes: [],
-      sxo_internal_links: [],
       ...fields,
     }
     const scores = this.calculateScores(newData)
@@ -119,7 +111,7 @@ class SeoModuleService extends MedusaService({
     const created = await this.createSeoMetadatas({
       ...newData,
       ...scores,
-    })
+    } as any)
 
     return created
   }

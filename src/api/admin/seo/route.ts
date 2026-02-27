@@ -30,7 +30,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const seoService: SeoModuleService = req.scope.resolve(SEO_MODULE)
 
-  const result = await seoService.upsertSeoMetadata(req.body)
+  const result = await seoService.upsertSeoMetadata(req.body as Record<string, any>)
 
   res.status(201).json({ seo_metadata: result })
 }

@@ -27,10 +27,12 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const { resource_type, resource_id } = req.params
 
+  const body = req.body as Record<string, any>
+
   const result = await seoService.upsertSeoMetadata({
     resource_type,
     resource_id,
-    ...req.body,
+    ...body,
   })
 
   res.json({ seo_metadata: result })

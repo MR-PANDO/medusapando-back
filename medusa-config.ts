@@ -60,6 +60,31 @@ module.exports = defineConfig({
         ],
       },
     },
+    // SMTP Notification Provider
+    {
+      resolve: "@medusajs/medusa/notification",
+      options: {
+        providers: [
+          {
+            resolve: "./src/modules/smtp-notification",
+            id: "notification-smtp",
+            options: {
+              channels: ["email"],
+              host: process.env.SMTP_HOST,
+              port: Number(process.env.SMTP_PORT) || 465,
+              secure: process.env.SMTP_SECURE === "true",
+              auth: {
+                user: process.env.SMTP_USER,
+                pass: process.env.SMTP_PASS,
+              },
+              from: process.env.SMTP_FROM,
+              storefront_url:
+                process.env.STOREFRONT_URL || "https://nutrimercados.com",
+            },
+          },
+        ],
+      },
+    },
     // Meilisearch
     {
       resolve: "@rokmohar/medusa-plugin-meilisearch",

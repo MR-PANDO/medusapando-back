@@ -7,7 +7,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const { resource_type, resource_id } = req.params
 
-  const [record] = await seoService.listSeoMetadatas(
+  const [record] = await seoService.listSeoMetadata(
     {
       resource_type,
       resource_id,

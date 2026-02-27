@@ -4,71 +4,71 @@ import { SeoMetadata } from "./models/seo-metadata"
 class SeoModuleService extends MedusaService({
   SeoMetadata,
 }) {
-  // ─── Manual CRUD Methods ───────────────────────────────────────────
-  // MedusaService auto-generated methods are not available at runtime
-  // for this module, so we implement them manually using the internal
-  // service registered in the container.
+  // ─── Manual CRUD overrides ──────────────────────────────────────────
+  // MedusaService types these as properties but fails to generate
+  // runtime implementations. We override them in the constructor.
 
-  private getSeoService(): any {
-    const container = (this as any).__container__
-    const service = container["seoMetadataService"]
-    if (!service) {
-      // Debug: list available services in container
-      const keys = Object.keys(container).filter((k) => k.includes("seo") || k.includes("Seo") || k.includes("SEO"))
-      throw new Error(
-        `seoMetadataService not found in container. SEO-related keys: [${keys.join(", ")}]`
+  constructor(container: Record<string, any>, ...rest: any[]) {
+    super(container, ...rest)
+
+    const internalService = container["seoMetadataService"]
+    const baseRepo = (this as any).baseRepository_
+
+    if (!internalService) {
+      const keys = Object.keys(container).filter(
+        (k) =>
+          k.toLowerCase().includes("seo") ||
+          k.toLowerCase().includes("metadata")
       )
+      console.error(
+        `[SEO Module] seoMetadataService not found. Related keys: [${keys.join(", ")}]`
+      )
+      return
     }
-    return service
-  }
 
-  private async serialize(data: any): Promise<any> {
-    return (this as any).baseRepository_.serialize(data)
-  }
+    const serialize = async (data: any) => baseRepo.serialize(data)
 
-  async listSeoMetadatas(
-    filters: Record<string, any> = {},
-    config: Record<string, any> = {}
-  ): Promise<any[]> {
-    const service = this.getSeoService()
-    const results = await service.list(filters, config)
-    return await this.serialize(results)
-  }
+    ;(this as any).listSeoMetadatas = async (
+      filters: any = {},
+      config: any = {}
+    ) => {
+      const results = await internalService.list(filters, config)
+      return await serialize(results)
+    }
 
-  async listAndCountSeoMetadatas(
-    filters: Record<string, any> = {},
-    config: Record<string, any> = {}
-  ): Promise<[any[], number]> {
-    const service = this.getSeoService()
-    const [results, count] = await service.listAndCount(filters, config)
-    return [await this.serialize(results), count]
-  }
+    ;(this as any).listAndCountSeoMetadatas = async (
+      filters: any = {},
+      config: any = {}
+    ) => {
+      const [results, count] = await internalService.listAndCount(
+        filters,
+        config
+      )
+      return [await serialize(results), count]
+    }
 
-  async retrieveSeoMetadata(
-    id: string,
-    config: Record<string, any> = {}
-  ): Promise<any> {
-    const service = this.getSeoService()
-    const result = await service.retrieve(id, config)
-    return await this.serialize(result)
-  }
+    ;(this as any).retrieveSeoMetadata = async (
+      id: string,
+      config: any = {}
+    ) => {
+      const result = await internalService.retrieve(id, config)
+      return await serialize(result)
+    }
 
-  async createSeoMetadatas(data: any): Promise<any> {
-    const service = this.getSeoService()
-    const result = await service.create(data)
-    return await this.serialize(result)
-  }
+    ;(this as any).createSeoMetadatas = async (data: any) => {
+      const result = await internalService.create(data)
+      return await serialize(result)
+    }
 
-  async updateSeoMetadatas(data: any): Promise<any> {
-    const service = this.getSeoService()
-    const result = await service.update(data)
-    return await this.serialize(result)
-  }
+    ;(this as any).updateSeoMetadatas = async (data: any) => {
+      const result = await internalService.update(data)
+      return await serialize(result)
+    }
 
-  async deleteSeoMetadatas(ids: string | string[]): Promise<void> {
-    const service = this.getSeoService()
-    const idArray = Array.isArray(ids) ? ids : [ids]
-    await service.delete(idArray)
+    ;(this as any).deleteSeoMetadatas = async (ids: string | string[]) => {
+      const idArray = Array.isArray(ids) ? ids : [ids]
+      await internalService.delete(idArray)
+    }
   }
 
   // ─── Score Calculation ─────────────────────────────────────────────
@@ -147,7 +147,7 @@ class SeoModuleService extends MedusaService({
   ): Promise<Record<string, any>> {
     const { resource_type, resource_id, ...fields } = input
 
-    const existing = await this.listSeoMetadatas(
+    const existing = await (this as any).listSeoMetadatas(
       { resource_type, resource_id },
       { take: 1 }
     )
@@ -157,7 +157,7 @@ class SeoModuleService extends MedusaService({
       const merged = { ...record, ...fields, resource_type, resource_id }
       const scores = this.calculateScores(merged)
 
-      const updated = await this.updateSeoMetadatas({
+      const updated = await (this as any).updateSeoMetadatas({
         id: record.id,
         ...fields,
         ...scores,
@@ -174,7 +174,7 @@ class SeoModuleService extends MedusaService({
     }
     const scores = this.calculateScores(newData)
 
-    const created = await this.createSeoMetadatas({
+    const created = await (this as any).createSeoMetadatas({
       ...newData,
       ...scores,
     })

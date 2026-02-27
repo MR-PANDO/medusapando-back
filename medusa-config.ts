@@ -36,6 +36,10 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/analytics",
     },
+    // SEO Module - SEO/AEO/GEO/SXO metadata management
+    {
+      resolve: "./src/modules/seo",
+    },
     // MinIO/S3 File Storage
     {
       resolve: "@medusajs/medusa/file",

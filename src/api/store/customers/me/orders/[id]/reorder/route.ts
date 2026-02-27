@@ -1,15 +1,15 @@
-import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import type {
+  AuthenticatedMedusaRequest,
+  MedusaResponse,
+} from "@medusajs/framework/http"
 import { reorderWorkflow } from "../../../../../../../workflows/reorder"
 
-export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+export const POST = async (
+  req: AuthenticatedMedusaRequest,
+  res: MedusaResponse
+) => {
   const orderId = req.params.id
-
-  // Ensure the customer is authenticated
-  const customerId = req.auth_context?.actor_id
-  if (!customerId) {
-    res.status(401).json({ message: "Authentication required" })
-    return
-  }
+  const customerId = req.auth_context.actor_id
 
   try {
     const { result: cart } = await reorderWorkflow(req.scope).run({

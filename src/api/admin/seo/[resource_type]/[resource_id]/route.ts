@@ -7,7 +7,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const { resource_type, resource_id } = req.params
 
-  const [record] = await seoService.listSeoMetadata(
+  const [record] = await seoService.listSeoMetadatas(
     {
       resource_type,
       resource_id,
@@ -43,7 +43,7 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const { resource_type, resource_id } = req.params
 
-  const [record] = await seoService.listSeoMetadata(
+  const [record] = await seoService.listSeoMetadatas(
     {
       resource_type,
       resource_id,
@@ -55,7 +55,7 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(404).json({ message: "SEO metadata not found" })
   }
 
-  await seoService.deleteSeoMetadata(record.id)
+  await seoService.deleteSeoMetadatas(record.id)
 
   res.status(200).json({ id: record.id, deleted: true })
 }

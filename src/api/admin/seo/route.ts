@@ -14,7 +14,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     filters.resource_type = resource_type
   }
 
-  const [records, count] = await seoService.listAndCountSeoMetadata(filters, {
+  const [records, count] = await seoService.listAndCountSeoMetadatas(filters, {
     skip: offset,
     take: limit,
   })

@@ -77,7 +77,7 @@ class SeoModuleService extends MedusaService({
     const { resource_type, resource_id, ...fields } = input
 
     // Look for existing record
-    const [existing] = await this.listSeoMetadata(
+    const [existing] = await this.listSeoMetadatas(
       {
         resource_type,
         resource_id,
@@ -90,7 +90,7 @@ class SeoModuleService extends MedusaService({
       const merged = { ...existing, ...fields, resource_type, resource_id }
       const scores = this.calculateScores(merged)
 
-      const updated = await this.updateSeoMetadata({
+      const updated = await this.updateSeoMetadatas({
         id: existing.id,
         ...fields,
         ...scores,
@@ -103,7 +103,7 @@ class SeoModuleService extends MedusaService({
     const newData = { resource_type, resource_id, ...fields }
     const scores = this.calculateScores(newData)
 
-    const created = await this.createSeoMetadata({
+    const created = await this.createSeoMetadatas({
       ...newData,
       ...scores,
     })

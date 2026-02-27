@@ -52,9 +52,3 @@ export const SeoMetadata = model
     geo_score: model.number().default(0),
     sxo_score: model.number().default(0),
   })
-  .indexes([
-    {
-      on: ["resource_type", "resource_id"],
-      unique: true,
-    },
-  ])

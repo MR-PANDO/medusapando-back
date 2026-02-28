@@ -10,12 +10,13 @@ import SxoTab from "./sxo-tab"
 type SeoFormProps = {
   resourceType: string
   resourceId: string
+  onSave?: () => void
 }
 
 const TABS = ["SEO", "AEO", "GEO", "SXO"] as const
 type Tab = (typeof TABS)[number]
 
-const SeoForm = ({ resourceType, resourceId }: SeoFormProps) => {
+const SeoForm = ({ resourceType, resourceId, onSave }: SeoFormProps) => {
   const [data, setData] = useState<SeoMetadataFormData>({
     ...defaultSeoMetadata,
     resource_type: resourceType,
@@ -67,7 +68,7 @@ const SeoForm = ({ resourceType, resourceId }: SeoFormProps) => {
         ? `/admin/seo/${resourceType}/${resourceId}`
         : `/admin/seo`
 
-      // Strip read-only / auto-calculated fields before sending
+      // Strip read-only / auto-calculated / server-managed fields before sending
       const {
         id: _id,
         resource_type: _rt,
@@ -76,8 +77,11 @@ const SeoForm = ({ resourceType, resourceId }: SeoFormProps) => {
         aeo_score: _s2,
         geo_score: _s3,
         sxo_score: _s4,
+        created_at: _ca,
+        updated_at: _ua,
+        deleted_at: _da,
         ...editableFields
-      } = data
+      } = data as any
 
       const body = exists
         ? editableFields
@@ -100,6 +104,7 @@ const SeoForm = ({ resourceType, resourceId }: SeoFormProps) => {
         })
         setExists(true)
         toast.success("SEO metadata saved")
+        onSave?.()
       } else {
         const err = await res.json().catch(() => ({}))
         toast.error(err.message || "Failed to save SEO metadata")

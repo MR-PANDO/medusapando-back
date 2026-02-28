@@ -11,6 +11,7 @@ import {
   toast,
 } from "@medusajs/ui"
 import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Globe, ChevronDown, ChevronUp, Plus, X } from "lucide-react"
 import SeoForm from "../../components/seo-form"
 import ScoreBadge from "../../components/seo-form/score-badge"
@@ -98,6 +99,7 @@ const PREDEFINED_PAGES: PageEntry[] = [
 ]
 
 const SeoManagerPage = () => {
+  const { t } = useTranslation()
   const [pages, setPages] = useState<PageEntry[]>(PREDEFINED_PAGES)
   const [scoresMap, setScoresMap] = useState<Record<string, SeoScores>>({})
   const [existsMap, setExistsMap] = useState<Record<string, boolean>>({})
@@ -136,7 +138,7 @@ const SeoManagerPage = () => {
           customPages.push({
             slug,
             label: slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, " "),
-            description: "Pagina personalizada",
+            description: t("seo.customPage"),
             custom: true,
           })
         }
@@ -169,12 +171,12 @@ const SeoManagerPage = () => {
       .replace(/^-|-$/g, "")
 
     if (!slug) {
-      toast.error("El slug no puede estar vacio")
+      toast.error(t("seo.emptySlug"))
       return
     }
 
     if (pages.find((p) => p.slug === slug)) {
-      toast.error("Ya existe una pagina con ese slug")
+      toast.error(t("seo.duplicateSlug"))
       return
     }
 
@@ -183,7 +185,7 @@ const SeoManagerPage = () => {
       {
         slug,
         label: newLabel.trim() || slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, " "),
-        description: "Pagina personalizada",
+        description: t("seo.customPage"),
         custom: true,
       },
     ])
@@ -202,7 +204,7 @@ const SeoManagerPage = () => {
           credentials: "include",
         })
         if (!res.ok) {
-          toast.error("Error al eliminar los datos SEO")
+          toast.error(t("seo.deleteError"))
           return
         }
       } catch {
@@ -227,12 +229,12 @@ const SeoManagerPage = () => {
       setExpandedSlug(null)
     }
 
-    toast.success("Pagina eliminada")
+    toast.success(t("seo.pageDeleted"))
   }
 
   const getOverallStatus = (slug: string) => {
     if (!existsMap[slug]) {
-      return <Badge color="grey">Sin configurar</Badge>
+      return <Badge color="grey">{t("seo.notConfigured")}</Badge>
     }
     const scores = scoresMap[slug]
     if (!scores) return <Badge color="grey">Sin configurar</Badge>
@@ -240,10 +242,10 @@ const SeoManagerPage = () => {
     const avg =
       (scores.seo_score + scores.aeo_score + scores.geo_score + scores.sxo_score) / 4
 
-    if (avg >= 80) return <Badge color="green">Excelente</Badge>
-    if (avg >= 50) return <Badge color="orange">Regular</Badge>
-    if (avg > 0) return <Badge color="red">Necesita mejoras</Badge>
-    return <Badge color="grey">Iniciado</Badge>
+    if (avg >= 80) return <Badge color="green">{t("seo.excellent")}</Badge>
+    if (avg >= 50) return <Badge color="orange">{t("seo.regular")}</Badge>
+    if (avg > 0) return <Badge color="red">{t("seo.needsWork")}</Badge>
+    return <Badge color="grey">{t("seo.started")}</Badge>
   }
 
   return (
@@ -253,9 +255,9 @@ const SeoManagerPage = () => {
         <div className="flex items-center gap-x-3">
           <Globe className="text-ui-fg-subtle" />
           <div>
-            <Heading level="h1">SEO Manager</Heading>
+            <Heading level="h1">{t("seo.title")}</Heading>
             <Text className="text-ui-fg-subtle">
-              Administra el SEO de las paginas estaticas de tu tienda
+              {t("seo.description")}
             </Text>
           </div>
         </div>
@@ -265,7 +267,7 @@ const SeoManagerPage = () => {
           onClick={() => setAddingCustom(!addingCustom)}
         >
           <Plus className="mr-1" size={16} />
-          Agregar Pagina
+          {t("seo.addPage")}
         </Button>
       </div>
 
@@ -273,25 +275,25 @@ const SeoManagerPage = () => {
       {addingCustom && (
         <div className="px-6 py-4 bg-ui-bg-subtle flex items-end gap-x-3">
           <div className="flex-1">
-            <Text className="text-sm font-medium mb-1">Slug de la pagina</Text>
+            <Text className="text-sm font-medium mb-1">{t("seo.pageSlug")}</Text>
             <Input
-              placeholder="ej: blog, ofertas, quienes-somos"
+              placeholder={t("seo.slugPlaceholder")}
               value={newSlug}
               onChange={(e) => setNewSlug(e.target.value)}
             />
           </div>
           <div className="flex-1">
             <Text className="text-sm font-medium mb-1">
-              Nombre (opcional)
+              {t("seo.nameOptional")}
             </Text>
             <Input
-              placeholder="ej: Blog, Ofertas Especiales"
+              placeholder={t("seo.namePlaceholder")}
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
             />
           </div>
           <Button variant="primary" size="small" onClick={handleAddCustom}>
-            Agregar
+            {t("seo.add")}
           </Button>
           <Button
             variant="secondary"
@@ -302,7 +304,7 @@ const SeoManagerPage = () => {
               setNewLabel("")
             }}
           >
-            Cancelar
+            {t("seo.cancel")}
           </Button>
         </div>
       )}
@@ -312,18 +314,18 @@ const SeoManagerPage = () => {
         {loading ? (
           <div className="text-center py-8">
             <Text className="text-ui-fg-subtle">
-              Cargando datos SEO...
+              {t("seo.loading")}
             </Text>
           </div>
         ) : (
           <Table>
             <Table.Header>
               <Table.Row>
-                <Table.HeaderCell>Pagina</Table.HeaderCell>
-                <Table.HeaderCell>Slug</Table.HeaderCell>
-                <Table.HeaderCell>Estado</Table.HeaderCell>
-                <Table.HeaderCell>Puntajes</Table.HeaderCell>
-                <Table.HeaderCell>Acciones</Table.HeaderCell>
+                <Table.HeaderCell>{t("seo.page")}</Table.HeaderCell>
+                <Table.HeaderCell>{t("seo.slug")}</Table.HeaderCell>
+                <Table.HeaderCell>{t("seo.status")}</Table.HeaderCell>
+                <Table.HeaderCell>{t("seo.scores")}</Table.HeaderCell>
+                <Table.HeaderCell>{t("seo.actions")}</Table.HeaderCell>
               </Table.Row>
             </Table.Header>
             <Table.Body>
@@ -387,14 +389,14 @@ const SeoManagerPage = () => {
                           {expandedSlug === page.slug ? (
                             <>
                               <ChevronUp size={14} className="mr-1" />
-                              Cerrar
+                              {t("seo.close")}
                             </>
                           ) : (
                             <>
                               <ChevronDown size={14} className="mr-1" />
                               {existsMap[page.slug]
-                                ? "Editar SEO"
-                                : "Configurar SEO"}
+                                ? t("seo.editSeo")
+                                : t("seo.configure")}
                             </>
                           )}
                         </Button>

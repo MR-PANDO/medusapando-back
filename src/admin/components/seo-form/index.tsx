@@ -1,5 +1,6 @@
 import { Container, Heading, Button, Toaster, toast } from "@medusajs/ui"
 import { useState, useEffect } from "react"
+import { useTranslation } from "react-i18next"
 import { SeoMetadataFormData, defaultSeoMetadata } from "./types"
 import ScoreBadge from "./score-badge"
 import SeoTab from "./seo-tab"
@@ -17,6 +18,7 @@ const TABS = ["SEO", "AEO", "GEO", "SXO"] as const
 type Tab = (typeof TABS)[number]
 
 const SeoForm = ({ resourceType, resourceId, onSave }: SeoFormProps) => {
+  const { t } = useTranslation()
   const [data, setData] = useState<SeoMetadataFormData>({
     ...defaultSeoMetadata,
     resource_type: resourceType,
@@ -103,11 +105,11 @@ const SeoForm = ({ resourceType, resourceId, onSave }: SeoFormProps) => {
           resource_id: resourceId,
         })
         setExists(true)
-        toast.success("SEO metadata saved")
+        toast.success(t("seo.saved"))
         onSave?.()
       } else {
         const err = await res.json().catch(() => ({}))
-        toast.error(err.message || "Failed to save SEO metadata")
+        toast.error(err.message || t("seo.saveFailed"))
       }
     } catch (error) {
       toast.error("Failed to save SEO metadata")
@@ -119,7 +121,7 @@ const SeoForm = ({ resourceType, resourceId, onSave }: SeoFormProps) => {
   if (loading) {
     return (
       <Container className="divide-y p-0">
-        <div className="px-6 py-4 text-gray-500">Loading SEO data...</div>
+        <div className="px-6 py-4 text-gray-500">{t("seo.loadingSeoData")}</div>
       </Container>
     )
   }
@@ -129,7 +131,7 @@ const SeoForm = ({ resourceType, resourceId, onSave }: SeoFormProps) => {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-x-3">
-          <Heading level="h2">SEO / AEO / GEO / SXO</Heading>
+          <Heading level="h2">{t("seo.seoAeoGeoSxo")}</Heading>
           <div className="flex gap-x-1">
             <ScoreBadge label="SEO" score={data.seo_score} />
             <ScoreBadge label="AEO" score={data.aeo_score} />
@@ -143,7 +145,7 @@ const SeoForm = ({ resourceType, resourceId, onSave }: SeoFormProps) => {
           onClick={handleSave}
           disabled={saving}
         >
-          {saving ? "Saving..." : exists ? "Save" : "Initialize SEO"}
+          {saving ? t("seo.saving") : exists ? t("seo.save") : t("seo.initializeSeo")}
         </Button>
       </div>
 

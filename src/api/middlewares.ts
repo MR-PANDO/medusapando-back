@@ -7,6 +7,10 @@ import {
   PostAdminCreateBrand,
   PostAdminUpdateBrand,
 } from "./admin/brands/validators"
+import {
+  PostAdminCreateSeo,
+  PostAdminUpdateSeo,
+} from "./admin/seo/validators"
 
 export default defineMiddlewares({
   routes: [
@@ -34,6 +38,17 @@ export default defineMiddlewares({
       matcher: "/admin/nutrition/:productId/scan",
       method: "POST",
       bodyParser: { sizeLimit: "10mb" },
+    },
+    // SEO validation middlewares
+    {
+      matcher: "/admin/seo",
+      method: "POST",
+      middlewares: [validateAndTransformBody(PostAdminCreateSeo)],
+    },
+    {
+      matcher: "/admin/seo/:resource_type/:resource_id",
+      method: "PUT",
+      middlewares: [validateAndTransformBody(PostAdminUpdateSeo)],
     },
   ],
 })

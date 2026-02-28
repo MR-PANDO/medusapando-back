@@ -140,12 +140,55 @@ class SeoModuleService extends MedusaService({
     return { seo_score, aeo_score, geo_score, sxo_score }
   }
 
+  // ─── Field Allowlist (defense-in-depth) ─────────────────────────────
+
+  private static ALLOWED_FIELDS = new Set([
+    "seo_title",
+    "seo_description",
+    "seo_keywords",
+    "canonical_url",
+    "robots",
+    "og_title",
+    "og_description",
+    "og_image",
+    "og_type",
+    "twitter_card",
+    "twitter_title",
+    "twitter_description",
+    "structured_data_type",
+    "structured_data_json",
+    "sitemap_priority",
+    "sitemap_changefreq",
+    "hreflang_entries",
+    "aeo_faqs",
+    "aeo_howto_steps",
+    "aeo_short_answer",
+    "geo_entity_summary",
+    "geo_citations",
+    "geo_key_attributes",
+    "sxo_intent",
+    "sxo_cta_text",
+    "sxo_internal_links",
+    "sxo_cwv_notes",
+  ])
+
+  private sanitizeFields(input: Record<string, any>): Record<string, any> {
+    const clean: Record<string, any> = {}
+    for (const [key, value] of Object.entries(input)) {
+      if (SeoModuleService.ALLOWED_FIELDS.has(key)) {
+        clean[key] = value
+      }
+    }
+    return clean
+  }
+
   // ─── Upsert ────────────────────────────────────────────────────────
 
   async upsertSeoMetadata(
     input: Record<string, any>
   ): Promise<Record<string, any>> {
-    const { resource_type, resource_id, ...fields } = input
+    const { resource_type, resource_id, ...rawFields } = input
+    const fields = this.sanitizeFields(rawFields)
 
     const existing = await (this as any).listSeoMetadatas(
       { resource_type, resource_id },

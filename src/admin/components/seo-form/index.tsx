@@ -67,9 +67,21 @@ const SeoForm = ({ resourceType, resourceId }: SeoFormProps) => {
         ? `/admin/seo/${resourceType}/${resourceId}`
         : `/admin/seo`
 
+      // Strip read-only / auto-calculated fields before sending
+      const {
+        id: _id,
+        resource_type: _rt,
+        resource_id: _ri,
+        seo_score: _s1,
+        aeo_score: _s2,
+        geo_score: _s3,
+        sxo_score: _s4,
+        ...editableFields
+      } = data
+
       const body = exists
-        ? { ...data }
-        : { ...data, resource_type: resourceType, resource_id: resourceId }
+        ? editableFields
+        : { ...editableFields, resource_type: resourceType, resource_id: resourceId }
 
       const res = await fetch(url, {
         method,

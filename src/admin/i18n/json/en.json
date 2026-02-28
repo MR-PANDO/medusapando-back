@@ -45,6 +45,22 @@
     "servingsPerContainer": "Servings per container",
     "addNutrient": "Add nutrient"
   },
+  "translations": {
+    "title": "Translations",
+    "existing": "Existing translations:",
+    "locale": "Locale",
+    "productTitle": "Title",
+    "categoryName": "Name",
+    "description": "Description",
+    "save": "Save Translation",
+    "saving": "Saving...",
+    "saved": "Translation saved",
+    "saveFailed": "Failed to save translation",
+    "deleted": "Translation deleted",
+    "deleteFailed": "Failed to delete translation",
+    "noTitle": "(no title)",
+    "noName": "(no name)"
+  },
   "brand": {
     "title": "Brand",
     "current": "Current Brand:",

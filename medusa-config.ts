@@ -40,6 +40,10 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/seo",
     },
+    // Content Translation Module - per-entity, per-locale translations
+    {
+      resolve: "./src/modules/content-translation",
+    },
     // MinIO/S3 File Storage
     {
       resolve: "@medusajs/medusa/file",
@@ -102,14 +106,18 @@ module.exports = defineConfig({
             indexSettings: {
               searchableAttributes: [
                 "title",
+                "title_en",
                 "description",
+                "description_en",
                 "variant_sku",
                 "handle",
               ],
               displayedAttributes: [
                 "id",
                 "title",
+                "title_en",
                 "description",
+                "description_en",
                 "variant_sku",
                 "thumbnail",
                 "handle",
@@ -126,12 +134,31 @@ module.exports = defineConfig({
               "variants.id",
               "variants.sku",
             ],
-            transformer: (product: any, defaultTransformer: any, options: any) => {
+            transformer: async (product: any, defaultTransformer: any, options: any) => {
               const transformed = defaultTransformer(product, options);
               // Extract first variant ID for add-to-cart functionality
               if (product.variants && product.variants.length > 0) {
                 transformed.variant_id = product.variants[0].id;
                 transformed.variant_sku = product.variants[0].sku;
+              }
+              // Add English translations for locale-aware search
+              try {
+                const { Client } = await import("pg");
+                const client = new Client({ connectionString: process.env.DATABASE_URL || "" });
+                await client.connect();
+                const result = await client.query(
+                  `SELECT title, description FROM content_translation
+                   WHERE entity_type = 'product' AND entity_id = $1 AND locale = 'en' AND deleted_at IS NULL
+                   LIMIT 1`,
+                  [product.id]
+                );
+                await client.end();
+                if (result.rows.length > 0) {
+                  transformed.title_en = result.rows[0].title || null;
+                  transformed.description_en = result.rows[0].description || null;
+                }
+              } catch (e) {
+                // Translation lookup failed — index without translations
               }
               return transformed;
             },

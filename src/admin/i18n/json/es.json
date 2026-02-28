@@ -45,6 +45,22 @@
     "servingsPerContainer": "Porciones por envase",
     "addNutrient": "Agregar nutriente"
   },
+  "translations": {
+    "title": "Traducciones",
+    "existing": "Traducciones existentes:",
+    "locale": "Idioma",
+    "productTitle": "Título",
+    "categoryName": "Nombre",
+    "description": "Descripción",
+    "save": "Guardar Traducción",
+    "saving": "Guardando...",
+    "saved": "Traducción guardada",
+    "saveFailed": "Error al guardar traducción",
+    "deleted": "Traducción eliminada",
+    "deleteFailed": "Error al eliminar traducción",
+    "noTitle": "(sin título)",
+    "noName": "(sin nombre)"
+  },
   "brand": {
     "title": "Marca",
     "current": "Marca Actual:",

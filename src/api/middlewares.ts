@@ -11,6 +11,10 @@ import {
   PostAdminCreateSeo,
   PostAdminUpdateSeo,
 } from "./admin/seo/validators"
+import {
+  PostAdminCreateTranslation,
+  PostAdminBatchTranslations,
+} from "./admin/translations/validators"
 
 export default defineMiddlewares({
   routes: [
@@ -49,6 +53,17 @@ export default defineMiddlewares({
       matcher: "/admin/seo/:resource_type/:resource_id",
       method: "PUT",
       middlewares: [validateAndTransformBody(PostAdminUpdateSeo)],
+    },
+    // Translation validation middlewares
+    {
+      matcher: "/admin/translations",
+      method: "POST",
+      middlewares: [validateAndTransformBody(PostAdminCreateTranslation)],
+    },
+    {
+      matcher: "/admin/translations/batch",
+      method: "POST",
+      middlewares: [validateAndTransformBody(PostAdminBatchTranslations)],
     },
   ],
 })

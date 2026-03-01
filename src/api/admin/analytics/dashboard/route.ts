@@ -157,12 +157,20 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     const activeOrders = allOrdersWithTotal.filter((o: any) => o.status !== "canceled")
     const totalRevenue = activeOrders.reduce((sum: number, order: any) => sum + (order.calculatedTotal || 0), 0)
 
+    // Get top pages and recent sessions for visitor detail
+    const [topPages, recentSessions] = await Promise.all([
+      getTopPages(analyticsService, monthStart),
+      getRecentSessions(analyticsService),
+    ])
+
     return res.json({
       visitors: {
         daily: dailyViews,
         weekly: weeklyViews,
         monthly: monthlyViews,
       },
+      topPages,
+      recentSessions,
       topSellingProducts,
       recentOrders: ordersWithCorrectTotal,
       summary: {
@@ -182,20 +190,74 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   }
 }
 
+async function getTopPages(analyticsService: any, since: Date): Promise<{ page_path: string; views: number }[]> {
+  if (!analyticsService) return []
+
+  try {
+    const views = await analyticsService.listPageViews(
+      { viewed_at: { $gte: since } },
+      { select: ["page_path"], take: 100000 }
+    )
+    // Count views per page
+    const pageCounts: Record<string, number> = {}
+    for (const v of views) {
+      pageCounts[v.page_path] = (pageCounts[v.page_path] || 0) + 1
+    }
+    return Object.entries(pageCounts)
+      .map(([page_path, views]) => ({ page_path, views }))
+      .sort((a, b) => b.views - a.views)
+      .slice(0, 10)
+  } catch (error) {
+    console.error("Error fetching top pages:", error)
+    return []
+  }
+}
+
+async function getRecentSessions(analyticsService: any): Promise<any[]> {
+  if (!analyticsService) return []
+
+  try {
+    const views = await analyticsService.listPageViews(
+      {},
+      { select: ["session_id", "page_path", "referrer", "country_code", "viewed_at"], take: 200, order: { viewed_at: "DESC" } }
+    )
+    // Group by session, take last 10 unique sessions
+    const sessionMap = new Map<string, { session_id: string; pages: number; first_page: string; referrer: string | null; country_code: string | null; last_seen: string }>()
+    for (const v of views) {
+      if (!sessionMap.has(v.session_id)) {
+        sessionMap.set(v.session_id, {
+          session_id: v.session_id,
+          pages: 1,
+          first_page: v.page_path,
+          referrer: v.referrer,
+          country_code: v.country_code,
+          last_seen: v.viewed_at,
+        })
+      } else {
+        const s = sessionMap.get(v.session_id)!
+        s.pages++
+      }
+    }
+    return Array.from(sessionMap.values()).slice(0, 10)
+  } catch (error) {
+    console.error("Error fetching recent sessions:", error)
+    return []
+  }
+}
+
 async function getUniqueVisitors(analyticsService: any, since: Date): Promise<number> {
   if (!analyticsService) return 0
 
   try {
-    const views = await analyticsService.listPageViews({
-      filters: {
-        viewed_at: { $gte: since }
-      }
-    })
+    const views = await analyticsService.listPageViews(
+      { viewed_at: { $gte: since } },
+      { select: ["session_id"], take: 100000 }
+    )
     // Count unique sessions
     const uniqueSessions = new Set(views.map((v: any) => v.session_id))
     return uniqueSessions.size
   } catch (error) {
-    // If table doesn't exist yet, return 0
+    console.error("Error fetching page views:", error)
     return 0
   }
 }

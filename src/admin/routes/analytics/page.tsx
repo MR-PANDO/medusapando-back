@@ -37,12 +37,28 @@ type RecentOrder = {
   }>
 }
 
+type TopPage = {
+  page_path: string
+  views: number
+}
+
+type RecentSession = {
+  session_id: string
+  pages: number
+  first_page: string
+  referrer: string | null
+  country_code: string | null
+  last_seen: string
+}
+
 type DashboardData = {
   visitors: {
     daily: number
     weekly: number
     monthly: number
   }
+  topPages: TopPage[]
+  recentSessions: RecentSession[]
   topSellingProducts: TopProduct[]
   recentOrders: RecentOrder[]
   summary: {
@@ -354,6 +370,73 @@ const AnalyticsPage = () => {
               <div className="text-3xl font-bold text-purple-600">{data.visitors.monthly}</div>
               <div className="text-sm text-gray-500">Últimos 30 días</div>
             </div>
+          </div>
+        </div>
+
+        {/* Top Pages & Recent Sessions */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Top Pages */}
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <BarChart3 className="w-5 h-5 text-indigo-600" />
+              <span className="font-semibold text-gray-700">Páginas Más Visitadas (30 días)</span>
+            </div>
+            {data.topPages && data.topPages.length > 0 ? (
+              <div className="space-y-2">
+                {data.topPages.map((page, index) => (
+                  <div key={page.page_path} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <span className="text-xs text-gray-400 w-5">{index + 1}.</span>
+                      <span className="text-sm text-gray-700 truncate">{page.page_path}</span>
+                    </div>
+                    <span className="text-sm font-bold text-indigo-600 ml-2">{page.views}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500 text-sm">
+                Sin datos de páginas aún. Los datos aparecerán cuando los visitantes naveguen el sitio.
+              </div>
+            )}
+          </div>
+
+          {/* Recent Sessions */}
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Users className="w-5 h-5 text-teal-600" />
+              <span className="font-semibold text-gray-700">Últimas Sesiones</span>
+            </div>
+            {data.recentSessions && data.recentSessions.length > 0 ? (
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {data.recentSessions.map((session) => (
+                  <div key={session.session_id} className="p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium text-gray-700 truncate max-w-[180px]">
+                        {session.first_page}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        {formatDate(session.last_seen)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-gray-500">
+                      <span>{session.pages} página{session.pages !== 1 ? "s" : ""}</span>
+                      {session.country_code && (
+                        <span className="uppercase font-medium">{session.country_code}</span>
+                      )}
+                      {session.referrer && (
+                        <span className="truncate max-w-[150px]" title={session.referrer}>
+                          via {new URL(session.referrer).hostname}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500 text-sm">
+                Sin sesiones registradas aún. Los datos aparecerán cuando los visitantes naveguen el sitio.
+              </div>
+            )}
           </div>
         </div>
 

@@ -3,6 +3,7 @@ import {
   StepResponse,
   createWorkflow,
   WorkflowResponse,
+  transform,
 } from "@medusajs/framework/workflows-sdk"
 import {
   sendAbandonedNotificationsStep,
@@ -60,13 +61,15 @@ export const sendAbandonedCartsWorkflow = createWorkflow(
   (input: SendAbandonedNotificationsInput) => {
     const sentCartIds = sendAbandonedNotificationsStep(input)
 
-    // Build the carts array with reminder numbers for marking
-    markCartsNotifiedStep({
+    // Use transform to resolve the proxy before calling .map()
+    const markInput = transform({ input }, ({ input }) => ({
       carts: input.carts.map((c) => ({
         id: c.id,
         reminder_number: c.reminder_number,
       })),
-    })
+    }))
+
+    markCartsNotifiedStep(markInput)
 
     return new WorkflowResponse(sentCartIds)
   }

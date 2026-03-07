@@ -20,6 +20,13 @@ module.exports = defineConfig({
     backendUrl: process.env.BACKEND_URL,
   },
   modules: [
+    // Redis Event Bus — required for server/worker split
+    {
+      resolve: "@medusajs/medusa/event-bus-redis",
+      options: {
+        redisUrl: process.env.REDIS_URL,
+      },
+    },
     // Brand Module
     {
       resolve: "./src/modules/brand",

@@ -1,5 +1,5 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { Container, Heading, Text, Badge, Button, Input, Label } from "@medusajs/ui"
+import { Container, Heading, Text, Badge, Button } from "@medusajs/ui"
 import { CreditCard } from "lucide-react"
 import { useEffect, useState } from "react"
 
@@ -47,7 +47,6 @@ const WompiPage = () => {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState("pending")
   const [managerEmail, setManagerEmail] = useState("")
-  const [emailSaved, setEmailSaved] = useState(false)
 
   const fetchPayments = async () => {
     setLoading(true)
@@ -79,21 +78,6 @@ const WompiPage = () => {
       }
     } catch {
       // Settings endpoint may not be available
-    }
-  }
-
-  const saveSettings = async () => {
-    try {
-      await fetch("/admin/wompi/settings", {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentManagerEmail: managerEmail }),
-      })
-      setEmailSaved(true)
-      setTimeout(() => setEmailSaved(false), 3000)
-    } catch {
-      // Handle silently
     }
   }
 
@@ -134,29 +118,17 @@ const WompiPage = () => {
       </Container>
 
       {/* Settings */}
-      <Container className="divide-y p-0">
-        <div className="px-6 py-4">
-          <Heading level="h2">Payment Manager</Heading>
+      {managerEmail && (
+        <Container className="px-6 py-4">
           <Text className="text-ui-fg-subtle text-sm">
-            Email address that receives notifications when payment status
-            changes.
+            Notificaciones de pago se envian a:{" "}
+            <span className="text-ui-fg-base font-medium">{managerEmail}</span>
           </Text>
-        </div>
-        <div className="flex items-end gap-3 px-6 py-4">
-          <div className="flex-1">
-            <Label>Notification Email</Label>
-            <Input
-              value={managerEmail}
-              onChange={(e) => setManagerEmail(e.target.value)}
-              placeholder="payments@yourstore.com"
-              type="email"
-            />
-          </div>
-          <Button onClick={saveSettings} variant="primary">
-            {emailSaved ? "Saved" : "Save"}
-          </Button>
-        </div>
-      </Container>
+          <Text className="text-ui-fg-muted text-xs mt-1">
+            Configurable via variable de entorno WOMPI_PAYMENT_MANAGER_EMAIL
+          </Text>
+        </Container>
+      )}
 
       {/* Filters */}
       <div className="flex gap-2">

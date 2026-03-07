@@ -64,6 +64,24 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     amount_in_cents: amountInCents,
   } = transaction
 
+  // Extract additional transaction details
+  const paymentMethod = transaction.payment_method ?? {}
+  const paymentMethodDetail =
+    paymentMethod.extra?.last_four
+      ? `${paymentMethod.extra?.brand ?? paymentMethodType} •••• ${paymentMethod.extra?.last_four}`
+      : paymentMethod.phone_number
+        ? `${paymentMethodType} ${paymentMethod.phone_number}`
+        : paymentMethodType ?? null
+  const customerName =
+    transaction.customer_data?.full_name ??
+    transaction.shipping_address?.address_line_1 ??
+    null
+  const customerPhone =
+    transaction.customer_data?.phone_number ??
+    paymentMethod.phone_number ??
+    null
+  const wompiReference = transaction.reference ?? null
+
   // 4. Update WompiPayment record (idempotent)
   const wompiService = req.scope.resolve<WompiModuleService>(WOMPI_MODULE)
 
@@ -85,7 +103,14 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       transactionId,
       wompiStatus,
       paymentMethodType ?? null,
-      body
+      body,
+      {
+        paymentMethodDetail,
+        customerName,
+        customerPhone,
+        wompiReference,
+        customerEmail: customerEmail ?? null,
+      }
     )
   }
 

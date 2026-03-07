@@ -145,7 +145,14 @@ class WompiModuleService extends MedusaService({
     transactionId: string,
     wompiStatus: string,
     paymentMethodType: string | null,
-    payload: Record<string, any>
+    payload: Record<string, any>,
+    extra?: {
+      paymentMethodDetail?: string | null
+      customerName?: string | null
+      customerPhone?: string | null
+      wompiReference?: string | null
+      customerEmail?: string | null
+    }
   ) {
     const record = await this.findByPaymentLinkId(paymentLinkId)
     if (!record) return null
@@ -162,14 +169,32 @@ class WompiModuleService extends MedusaService({
       wompiStatus
     )
 
-    return this.updateWompiPayments({
+    const updateData: Record<string, any> = {
       id: record.id,
       wompi_transaction_id: transactionId,
       wompi_status: statusMap[wompiStatus] ?? "error",
       payment_method_type: paymentMethodType,
       finalized_at: isFinal ? new Date() : undefined,
       last_webhook_payload: payload,
-    })
+    }
+
+    if (extra?.paymentMethodDetail) {
+      updateData.payment_method_detail = extra.paymentMethodDetail
+    }
+    if (extra?.customerName) {
+      updateData.customer_name = extra.customerName
+    }
+    if (extra?.customerPhone) {
+      updateData.customer_phone = extra.customerPhone
+    }
+    if (extra?.wompiReference) {
+      updateData.wompi_reference = extra.wompiReference
+    }
+    if (extra?.customerEmail && !record.customer_email) {
+      updateData.customer_email = extra.customerEmail
+    }
+
+    return this.updateWompiPayments(updateData)
   }
 }
 

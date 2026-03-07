@@ -8,7 +8,6 @@ import {
   Badge,
   toast,
   Toaster,
-  Copy,
 } from "@medusajs/ui"
 import { CreditCard } from "lucide-react"
 import { useEffect, useState } from "react"
@@ -17,13 +16,20 @@ type WompiPaymentRecord = {
   id: string
   order_id: string
   reference: string
+  wompi_transaction_id: string | null
   wompi_status: string
   amount_in_cents: number
+  currency: string
   customer_email: string | null
+  customer_name: string | null
+  customer_phone: string | null
   wompi_checkout_url: string | null
+  wompi_reference: string | null
   payment_method_type: string | null
+  payment_method_detail: string | null
   link_generated_at: string | null
   finalized_at: string | null
+  last_webhook_payload: any
 }
 
 const STATUS_COLORS: Record<
@@ -39,6 +45,16 @@ const STATUS_COLORS: Record<
   error: "red",
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  link_generating: "Generando link",
+  link_ready: "Link listo",
+  pending: "Pendiente",
+  approved: "Aprobada",
+  declined: "Rechazada",
+  voided: "Anulada",
+  error: "Error",
+}
+
 function formatCOP(cents: number): string {
   return new Intl.NumberFormat("es-CO", {
     style: "currency",
@@ -46,6 +62,38 @@ function formatCOP(cents: number): string {
     minimumFractionDigits: 0,
   }).format(cents / 100)
 }
+
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr)
+  return d.toLocaleString("es-CO", {
+    timeZone: "America/Bogota",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  })
+}
+
+const InfoRow = ({
+  label,
+  value,
+  mono,
+}: {
+  label: string
+  value: string
+  mono?: boolean
+}) => (
+  <div className="flex justify-between text-sm gap-x-4">
+    <Text className="text-ui-fg-subtle whitespace-nowrap">{label}</Text>
+    <Text
+      className={`text-right ${mono ? "font-mono text-xs" : ""}`}
+    >
+      {value}
+    </Text>
+  </div>
+)
 
 const OrderWompiWidget = ({ data }: DetailWidgetProps<any>) => {
   const [payment, setPayment] = useState<WompiPaymentRecord | null>(null)
@@ -113,6 +161,15 @@ const OrderWompiWidget = ({ data }: DetailWidgetProps<any>) => {
     ["link_ready", "pending"].includes(payment.wompi_status) &&
     payment.wompi_checkout_url
 
+  // Extract extra details from webhook payload if available
+  const webhookTx = payment?.last_webhook_payload?.data?.transaction
+  const paymentMethodDisplay =
+    payment?.payment_method_detail ??
+    (webhookTx?.payment_method?.extra?.last_four
+      ? `${webhookTx.payment_method.extra.brand ?? webhookTx.payment_method_type} •••• ${webhookTx.payment_method.extra.last_four}`
+      : payment?.payment_method_type) ??
+    null
+
   return (
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
@@ -122,7 +179,8 @@ const OrderWompiWidget = ({ data }: DetailWidgetProps<any>) => {
         </div>
         {payment && (
           <Badge color={STATUS_COLORS[payment.wompi_status] ?? "grey"}>
-            {payment.wompi_status.replace(/_/g, " ").toUpperCase()}
+            {STATUS_LABELS[payment.wompi_status] ??
+              payment.wompi_status.replace(/_/g, " ").toUpperCase()}
           </Badge>
         )}
       </div>
@@ -131,41 +189,82 @@ const OrderWompiWidget = ({ data }: DetailWidgetProps<any>) => {
         {loading ? (
           <Text className="text-ui-fg-subtle">Cargando...</Text>
         ) : payment ? (
-          <div className="flex flex-col gap-y-3">
-            <div className="flex justify-between text-sm">
-              <Text className="text-ui-fg-subtle">Monto</Text>
-              <Text className="font-medium">
-                {formatCOP(payment.amount_in_cents)}
-              </Text>
-            </div>
+          <div className="flex flex-col gap-y-2.5">
+            {/* Amount */}
+            <InfoRow
+              label="Monto"
+              value={formatCOP(payment.amount_in_cents)}
+            />
 
-            {payment.payment_method_type && (
-              <div className="flex justify-between text-sm">
-                <Text className="text-ui-fg-subtle">Metodo</Text>
-                <Text>{payment.payment_method_type}</Text>
-              </div>
+            {/* Transaction ID */}
+            {payment.wompi_transaction_id && (
+              <InfoRow
+                label="Transaccion #"
+                value={payment.wompi_transaction_id}
+                mono
+              />
+            )}
+
+            {/* Wompi Reference */}
+            {(payment.wompi_reference || payment.reference) && (
+              <InfoRow
+                label="Referencia"
+                value={payment.wompi_reference || payment.reference}
+                mono
+              />
+            )}
+
+            {/* Payment Method */}
+            {paymentMethodDisplay && (
+              <InfoRow label="Medio de pago" value={paymentMethodDisplay} />
+            )}
+
+            {/* Customer Info */}
+            {(payment.customer_name || webhookTx?.customer_data?.full_name) && (
+              <InfoRow
+                label="Cliente"
+                value={
+                  payment.customer_name ??
+                  webhookTx?.customer_data?.full_name ??
+                  ""
+                }
+              />
             )}
 
             {payment.customer_email && (
-              <div className="flex justify-between text-sm">
-                <Text className="text-ui-fg-subtle">Cliente</Text>
-                <Text>{payment.customer_email}</Text>
-              </div>
+              <InfoRow label="Email" value={payment.customer_email} />
+            )}
+
+            {(payment.customer_phone ||
+              webhookTx?.customer_data?.phone_number) && (
+              <InfoRow
+                label="Telefono"
+                value={
+                  payment.customer_phone ??
+                  webhookTx?.customer_data?.phone_number ??
+                  ""
+                }
+              />
+            )}
+
+            {/* Dates */}
+            {payment.link_generated_at && (
+              <InfoRow
+                label="Link generado"
+                value={formatDate(payment.link_generated_at)}
+              />
             )}
 
             {payment.finalized_at && (
-              <div className="flex justify-between text-sm">
-                <Text className="text-ui-fg-subtle">Finalizado</Text>
-                <Text>
-                  {new Date(payment.finalized_at).toLocaleString("es-CO", {
-                    timeZone: "America/Bogota",
-                  })}
-                </Text>
-              </div>
+              <InfoRow
+                label="Finalizado"
+                value={formatDate(payment.finalized_at)}
+              />
             )}
 
+            {/* Payment Link Section */}
             {showLink && (
-              <div className="mt-2 flex flex-col gap-y-2">
+              <div className="mt-2 flex flex-col gap-y-2 pt-2 border-t border-ui-border-base">
                 <Text className="text-ui-fg-subtle text-xs">
                   Link de pago:
                 </Text>
@@ -197,6 +296,7 @@ const OrderWompiWidget = ({ data }: DetailWidgetProps<any>) => {
               </div>
             )}
 
+            {/* Generate new link button */}
             {canGenerate && (
               <Button
                 className="mt-2"

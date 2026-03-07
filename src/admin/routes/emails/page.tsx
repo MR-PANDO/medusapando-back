@@ -1,5 +1,5 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { Container, Heading, Text, Badge, Button, Select } from "@medusajs/ui"
+import { Container, Heading, Text, Badge, Button } from "@medusajs/ui"
 import { Mail } from "lucide-react"
 import { useEffect, useState } from "react"
 
@@ -102,39 +102,47 @@ const EmailsPage = () => {
         </div>
       </Container>
 
-      {/* Filters */}
-      <div className="flex gap-4 items-center">
-        <div className="flex items-center gap-2">
+      {/* Status Filters */}
+      <div className="flex flex-col gap-3">
+        <div className="flex gap-2 items-center">
           <Text className="text-sm text-ui-fg-subtle">Estado:</Text>
-          <Select size="small" value={statusFilter} onValueChange={setStatusFilter}>
-            <Select.Trigger>
-              <Select.Value placeholder="Todos" />
-            </Select.Trigger>
-            <Select.Content>
-              <Select.Item value="">Todos</Select.Item>
-              <Select.Item value="queued">En cola</Select.Item>
-              <Select.Item value="sent">Enviado</Select.Item>
-              <Select.Item value="failed">Fallido</Select.Item>
-            </Select.Content>
-          </Select>
+          {[
+            { key: "", label: "Todos" },
+            { key: "queued", label: "En cola" },
+            { key: "sent", label: "Enviado" },
+            { key: "failed", label: "Fallido" },
+          ].map((f) => (
+            <Button
+              key={f.key}
+              size="small"
+              variant={statusFilter === f.key ? "primary" : "secondary"}
+              onClick={() => setStatusFilter(f.key)}
+            >
+              {f.label}
+            </Button>
+          ))}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex gap-2 items-center">
           <Text className="text-sm text-ui-fg-subtle">Tipo:</Text>
-          <Select size="small" value={typeFilter} onValueChange={setTypeFilter}>
-            <Select.Trigger>
-              <Select.Value placeholder="Todos" />
-            </Select.Trigger>
-            <Select.Content>
-              <Select.Item value="">Todos</Select.Item>
-              <Select.Item value="payment-link">Link de pago</Select.Item>
-              <Select.Item value="payment-status">Estado de pago</Select.Item>
-              <Select.Item value="abandoned-cart">Carrito abandonado</Select.Item>
-            </Select.Content>
-          </Select>
+          {[
+            { key: "", label: "Todos" },
+            { key: "payment-link", label: "Link de pago" },
+            { key: "payment-status", label: "Estado de pago" },
+            { key: "abandoned-cart", label: "Carrito abandonado" },
+          ].map((f) => (
+            <Button
+              key={f.key}
+              size="small"
+              variant={typeFilter === f.key ? "primary" : "secondary"}
+              onClick={() => setTypeFilter(f.key)}
+            >
+              {f.label}
+            </Button>
+          ))}
+          <Text className="text-xs text-ui-fg-muted ml-auto">
+            {count} correo{count !== 1 ? "s" : ""}
+          </Text>
         </div>
-        <Text className="text-xs text-ui-fg-muted ml-auto">
-          {count} correo{count !== 1 ? "s" : ""}
-        </Text>
       </div>
 
       {/* Table */}

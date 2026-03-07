@@ -9,7 +9,36 @@ type AbandonedCartData = {
     unit_price?: number
   }>
   customer_name?: string
+  reminder_number?: number
   [key: string]: unknown
+}
+
+const SUBJECTS: Record<number, string> = {
+  1: "Tu carrito te espera en NutriMercados",
+  2: "¡No olvides tu carrito! Tus productos te esperan",
+  3: "Última oportunidad — tu carrito expira pronto",
+}
+
+const MESSAGES: Record<number, { intro: string; cta: string }> = {
+  1: {
+    intro:
+      "Notamos que dejaste algunos productos en tu carrito. No te preocupes, los guardamos para ti.",
+    cta: "Completar mi compra",
+  },
+  2: {
+    intro:
+      "Tus productos favoritos siguen esperándote. ¡No los dejes ir! Completa tu pedido antes de que se agoten.",
+    cta: "Volver a mi carrito",
+  },
+  3: {
+    intro:
+      "Esta es tu última oportunidad — tu carrito expira pronto y no queremos que pierdas tus productos. ¡Completa tu compra ahora!",
+    cta: "Completar mi compra ahora",
+  },
+}
+
+export function getAbandonedCartSubject(reminderNumber: number): string {
+  return SUBJECTS[reminderNumber] || SUBJECTS[1]
 }
 
 export function abandonedCartTemplate(data: AbandonedCartData): string {
@@ -17,10 +46,11 @@ export function abandonedCartTemplate(data: AbandonedCartData): string {
   const cartId = data.cart_id || ""
   const items = data.items || []
   const customerName = data.customer_name || ""
+  const reminderNumber = data.reminder_number || 1
 
   const recoveryUrl = `${storefrontUrl}/co/cart/recover/${cartId}`
-
   const greeting = customerName ? `Hola ${customerName},` : "Hola,"
+  const message = MESSAGES[reminderNumber] || MESSAGES[1]
 
   const itemsHtml = items
     .map(
@@ -75,7 +105,7 @@ export function abandonedCartTemplate(data: AbandonedCartData): string {
                 ${greeting}
               </p>
               <p style="font-family: Arial, sans-serif; font-size: 16px; color: #333; line-height: 1.6;">
-                Notamos que dejaste algunos productos en tu carrito. No te preocupes, los guardamos para ti.
+                ${message.intro}
               </p>
 
               ${
@@ -100,7 +130,7 @@ export function abandonedCartTemplate(data: AbandonedCartData): string {
                 <tr>
                   <td align="center">
                     <a href="${recoveryUrl}" style="display: inline-block; background-color: #2d6a4f; color: #ffffff; font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; text-decoration: none; padding: 14px 40px; border-radius: 8px;">
-                      Completar mi compra
+                      ${message.cta}
                     </a>
                   </td>
                 </tr>

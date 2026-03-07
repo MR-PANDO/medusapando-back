@@ -16,6 +16,7 @@ export type SendAbandonedNotificationsInput = {
     email: string
     items: AbandonedCartItem[]
     customer_name?: string
+    reminder_number: number
   }>
 }
 
@@ -38,12 +39,13 @@ export const sendAbandonedNotificationsStep = createStep(
             cart_id: cart.id,
             items: cart.items,
             customer_name: cart.customer_name,
+            reminder_number: cart.reminder_number,
           },
         })
         sentCartIds.push(cart.id)
       } catch (error) {
         console.error(
-          `Failed to send abandoned cart email for cart ${cart.id}:`,
+          `Failed to send abandoned cart email #${cart.reminder_number} for cart ${cart.id}:`,
           error
         )
       }

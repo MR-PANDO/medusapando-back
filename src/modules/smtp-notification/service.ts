@@ -3,7 +3,10 @@ import {
   MedusaError,
 } from "@medusajs/framework/utils"
 import nodemailer, { type Transporter } from "nodemailer"
-import { abandonedCartTemplate } from "./templates/abandoned-cart"
+import {
+  abandonedCartTemplate,
+  getAbandonedCartSubject,
+} from "./templates/abandoned-cart"
 
 type SmtpOptions = {
   host: string
@@ -62,7 +65,9 @@ class SmtpNotificationService extends AbstractNotificationProviderService {
 
     switch (template) {
       case "abandoned-cart":
-        subject = "Tu carrito te espera en NutriMercados"
+        subject = getAbandonedCartSubject(
+          (data.reminder_number as number) || 1
+        )
         html = abandonedCartTemplate({
           ...data,
           storefront_url: this.storefrontUrl,

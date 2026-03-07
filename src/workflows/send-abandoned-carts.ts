@@ -10,7 +10,7 @@ import {
 } from "./steps/send-abandoned-notifications"
 
 type MarkCartsNotifiedInput = {
-  cart_ids: string[]
+  carts: Array<{ id: string; reminder_number: number }>
 }
 
 export const markCartsNotifiedStep = createStep(
@@ -18,9 +18,8 @@ export const markCartsNotifiedStep = createStep(
   async (input: MarkCartsNotifiedInput, { container }) => {
     const query = container.resolve("query")
 
-    for (const cartId of input.cart_ids) {
+    for (const { id: cartId, reminder_number } of input.carts) {
       try {
-        // Update cart metadata to mark as notified
         const { data: carts } = await query.graph({
           entity: "cart",
           fields: ["id", "metadata"],
@@ -29,26 +28,30 @@ export const markCartsNotifiedStep = createStep(
 
         if (carts.length > 0) {
           const cart = carts[0] as any
-          const remoteLink = container.resolve("remoteLink") as any
-
-          // We use the cart module directly to update metadata
           const cartService = container.resolve("cart") as any
-          await cartService.updateCarts(cartId, {
-            metadata: {
-              ...(cart.metadata || {}),
-              abandoned_notified_at: new Date().toISOString(),
-            },
-          })
+
+          const now = new Date().toISOString()
+          const metadata = {
+            ...(cart.metadata || {}),
+            abandoned_notify_count: reminder_number,
+          }
+
+          // Set the first notified timestamp only on the first email
+          if (reminder_number === 1) {
+            metadata.abandoned_first_notified_at = now
+          }
+
+          await cartService.updateCarts(cartId, { metadata })
         }
       } catch (error) {
         console.error(
-          `Failed to mark cart ${cartId} as notified:`,
+          `Failed to mark cart ${cartId} as notified (email #${reminder_number}):`,
           error
         )
       }
     }
 
-    return new StepResponse(input.cart_ids)
+    return new StepResponse(input.carts.map((c) => c.id))
   }
 )
 
@@ -57,7 +60,13 @@ export const sendAbandonedCartsWorkflow = createWorkflow(
   (input: SendAbandonedNotificationsInput) => {
     const sentCartIds = sendAbandonedNotificationsStep(input)
 
-    markCartsNotifiedStep({ cart_ids: sentCartIds })
+    // Build the carts array with reminder numbers for marking
+    markCartsNotifiedStep({
+      carts: input.carts.map((c) => ({
+        id: c.id,
+        reminder_number: c.reminder_number,
+      })),
+    })
 
     return new WorkflowResponse(sentCartIds)
   }

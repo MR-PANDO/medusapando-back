@@ -44,6 +44,28 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/content-translation",
     },
+    // Wompi Module - payment link tracking and admin panel
+    {
+      resolve: "./src/modules/wompi",
+    },
+    // Payment Module with Wompi provider
+    {
+      resolve: "@medusajs/medusa/payment",
+      options: {
+        providers: [
+          {
+            resolve: "./src/providers/payment-wompi",
+            id: "wompi",
+            options: {
+              publicKey: process.env.WOMPI_PUBLIC_KEY,
+              privateKey: process.env.WOMPI_PRIVATE_KEY,
+              eventsSecret: process.env.WOMPI_EVENTS_SECRET,
+              environment: process.env.WOMPI_ENVIRONMENT ?? "sandbox",
+            },
+          },
+        ],
+      },
+    },
     // MinIO/S3 File Storage
     {
       resolve: "@medusajs/medusa/file",

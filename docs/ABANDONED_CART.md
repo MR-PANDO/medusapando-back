@@ -146,17 +146,38 @@ The template file exports:
 
 All 3 emails share the same HTML structure (header, product table, CTA button, footer). Only the intro paragraph, CTA button text, and subject differ.
 
-### 4. Email Links to Recovery Page
+### 4. Recovery — How the Cart Is Restored
 
-Each email contains a recovery link: `{storefront_url}/co/cart/recover/{cart_id}`
+Recovery works via the URL `/{countryCode}/cart/recover/{cart_id}`. This link appears in:
+- The recovery emails (hardcoded to `/co/cart/recover/{cart_id}`)
+- The "Recuperar carrito" button in the account dashboard
 
-**File (frontend):** `src/app/[countryCode]/(main)/cart/recover/[id]/page.tsx`
+**File (frontend):** `src/app/[countryCode]/(main)/cart/recover/[id]/route.ts`
 
-The recover page does two things:
-1. Calls `setCartId(id)` — sets the `_medusa_cart_id` cookie to the abandoned cart's ID
-2. Redirects to `/{countryCode}/cart`
+This is a **Next.js Route Handler** (not a page component). It must be a Route Handler because Next.js 15 does not allow setting cookies in Server Components — only in Route Handlers and Server Actions.
 
-When the cart page loads, it reads the cookie, fetches the cart from Medusa, and displays all the items. The customer can then proceed to checkout normally.
+```ts
+export async function GET(request, { params }) {
+  const { countryCode, id } = await params
+
+  // 1. Set the cart cookie so the cart page loads this cart
+  cookieStore.set("_medusa_cart_id", id, { ... })
+
+  // 2. Build redirect URL using reverse proxy headers (not request.url)
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host")
+  const proto = request.headers.get("x-forwarded-proto") || "https"
+  const baseUrl = host ? `${proto}://${host}` : request.url
+
+  // 3. Redirect to the cart page
+  return NextResponse.redirect(new URL(`/${countryCode}/cart`, baseUrl))
+}
+```
+
+**Why `x-forwarded-host` instead of `request.url`:** The frontend runs behind Nginx Proxy Manager (reverse proxy). `request.url` resolves to `localhost:8000` (the internal container address), not the public domain. The reverse proxy sets `x-forwarded-host: nutrimercados.com` and `x-forwarded-proto: https`, which the route handler reads to build the correct public redirect URL.
+
+**Why `<a>` tag instead of `<Link>`:** The "Recuperar carrito" button in the account dashboard uses a regular `<a>` tag, not Next.js `<Link>` or `LocalizedClientLink`. This is because `<Link>` does client-side navigation (fetches a React component), which doesn't work with Route Handlers. Route Handlers only respond to full HTTP requests, which `<a>` tags trigger via browser navigation.
+
+**Cross-browser / cross-device support:** The cart lives in the database, not in the browser. The recovery URL contains the cart ID. When clicked from any browser or device, it sets the cart cookie in that browser and loads the cart. The user doesn't need to be on the same browser/device where they originally added items.
 
 ### 5. Customer Account Dashboard — Abandoned Cart Section
 
@@ -219,9 +240,34 @@ Passes `abandonedCart` as a prop to the Overview component.
 The `AbandonedCartSection` component renders when `abandonedCart` is not null:
 - Shows a heading "Carrito Abandonado" with "Expires in X days" countdown
 - Amber-colored card with product thumbnails (up to 4), titles, quantities
-- "Recuperar carrito" button linking to `/cart/recover/{id}`
+- "Recuperar carrito" button — uses a regular `<a>` tag (not `LocalizedClientLink`) to force full HTTP navigation to the Route Handler
 
 The section is completely hidden when there's no abandoned cart.
+
+## Deployment
+
+### Environment Variables
+
+The SMTP notification module requires these env vars. Set them on both the **server** and **worker** deployments (same codebase, different `WORKER_MODE`):
+
+| Variable | Example | Description |
+|----------|---------|-------------|
+| `SMTP_HOST` | `smtp.gmail.com` | SMTP server hostname |
+| `SMTP_PORT` | `465` | SMTP port (465 for SSL, 587 for TLS) |
+| `SMTP_SECURE` | `true` | Use SSL/TLS |
+| `SMTP_USER` | `noreply@nutrimercados.com` | SMTP login |
+| `SMTP_PASS` | `...` | SMTP password |
+| `SMTP_FROM` | `NutriMercados <noreply@nutrimercados.com>` | From address |
+| `STOREFRONT_URL` | `https://nutrimercados.com` | Used to build recovery links in emails |
+
+### Worker Mode
+
+The server and worker use the **same codebase** (`medusapando-back`), differentiated by the `WORKER_MODE` env var:
+
+- **Server** (`WORKER_MODE=server`): Handles HTTP requests (API, admin). Runs on port 9004.
+- **Worker** (`WORKER_MODE=worker`): Runs scheduled jobs (email drip, cleanup) and event subscribers. No HTTP traffic.
+
+The scheduled jobs (`abandoned-cart-notification`, `cleanup-abandoned-carts`) only run on the worker process.
 
 ## Files Summary
 
@@ -243,8 +289,8 @@ The section is completely hidden when there's no abandoned cart.
 |------|-------------|
 | `src/lib/data/cart.ts` | `getAbandonedCart()` server action + `AbandonedCart` / `AbandonedCartItem` types |
 | `src/app/[countryCode]/(main)/account/@dashboard/page.tsx` | Fetches abandoned cart in parallel with orders, passes to Overview |
-| `src/modules/account/components/overview/index.tsx` | `AbandonedCartSection` client component — product thumbnails, expiry countdown, recover button |
-| `src/app/[countryCode]/(main)/cart/recover/[id]/page.tsx` | Recovery page — sets cart cookie and redirects to `/cart` (pre-existing, not modified) |
+| `src/modules/account/components/overview/index.tsx` | `AbandonedCartSection` client component — product thumbnails, expiry countdown, recover button (uses `<a>` tag, not `<Link>`) |
+| `src/app/[countryCode]/(main)/cart/recover/[id]/route.ts` | Route Handler — sets cart cookie and redirects to `/cart` using `x-forwarded-host` for correct domain |
 | `src/messages/es.json` | Spanish translation keys in `account` namespace |
 | `src/messages/en.json` | English translation keys in `account` namespace |
 
@@ -327,15 +373,23 @@ Day 30: Cart is soft-deleted by cleanup job
 
 1. **Workflow proxy objects:** In Medusa v2 `createWorkflow`, the `input` parameter is a proxy — not a real JS object. You MUST use `transform()` to resolve it before calling `.map()`, `.filter()`, or accessing nested properties. Calling `input.carts.map(...)` directly will crash the backend on startup with `input.carts.map is not a function`.
 
-2. **Email timing is checked once per day:** The cron runs at midnight. A cart abandoned at 11pm will get email 1 at midnight the next day (~25h later), not exactly at 24h. This is intentional — batching reduces server load.
+2. **Recovery route must be a Route Handler (`route.ts`), not a page (`page.tsx`):** Next.js 15 does not allow setting cookies in Server Components. The recover route sets the `_medusa_cart_id` cookie, so it must be a Route Handler. Using `page.tsx` will crash with `Cookies can only be modified in a Server Action or Route Handler`.
 
-3. **Guest carts vs logged-in carts:** The email drip works for ALL carts with an email (including guests). The account dashboard section only works for logged-in customers (requires `customer_id` on the cart).
+3. **Recovery button must use `<a>` tag, not `<Link>`:** Next.js `<Link>` (and `LocalizedClientLink`) does client-side navigation, which fetches a React component. Route Handlers only respond to full HTTP requests. Using `<Link>` to navigate to a `route.ts` will fail with a 404. Use a regular `<a>` tag to force browser navigation.
 
-4. **Cart gets completed mid-drip:** If a customer completes their purchase after email 1, the cart's `completed_at` gets set. The cron job filters for `completed_at: null`, so emails 2 and 3 will never be sent. No extra cleanup needed.
+4. **Redirect must use `x-forwarded-host`, not `request.url`:** The frontend runs behind Nginx Proxy Manager. `request.url` resolves to `localhost:8000` (internal), not the public domain. The route handler reads `x-forwarded-host` and `x-forwarded-proto` headers set by the reverse proxy to build the correct public URL for the redirect.
 
-5. **Customer creates a new cart:** If a customer abandons cart A, then comes back and creates cart B, both carts exist in the database. The email drip continues for cart A (it still has `completed_at: null`). The account dashboard shows the most recent one sorted by `updated_at`.
+5. **Email timing is checked once per day:** The cron runs at midnight. A cart abandoned at 11pm will get email 1 at midnight the next day (~25h later), not exactly at 24h. This is intentional — batching reduces server load.
 
-6. **Recovery link country code:** The email template currently hardcodes `/co/` in the recovery URL. If you add more countries, update the template to use the cart's country code dynamically.
+6. **Guest carts vs logged-in carts:** The email drip works for ALL carts with an email (including guests). The account dashboard section only works for logged-in customers (requires `customer_id` on the cart).
+
+7. **Cart gets completed mid-drip:** If a customer completes their purchase after email 1, the cart's `completed_at` gets set. The cron job filters for `completed_at: null`, so emails 2 and 3 will never be sent. No extra cleanup needed.
+
+8. **Customer creates a new cart:** If a customer abandons cart A, then comes back and creates cart B, both carts exist in the database. The email drip continues for cart A (it still has `completed_at: null`). The account dashboard shows the most recent one sorted by `updated_at`.
+
+9. **Recovery link country code:** The email template currently hardcodes `/co/` in the recovery URL. If you add more countries, update the template to use the cart's country code dynamically.
+
+10. **Cross-browser recovery:** The cart lives in the database, not in the browser. The recovery URL contains the cart ID. Clicking it from any browser or device sets the cookie in that browser and loads the cart. Works across devices.
 
 ## Extending
 

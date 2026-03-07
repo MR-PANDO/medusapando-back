@@ -1,8 +1,6 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { Modules } from "@medusajs/framework/utils"
 import { INotificationModuleService } from "@medusajs/framework/types"
-import { EMAIL_AUDIT_MODULE } from "../../modules/email-audit"
-import type EmailAuditModuleService from "../../modules/email-audit/service"
 
 type AbandonedCartItem = {
   title?: string
@@ -29,15 +27,11 @@ export const sendAbandonedNotificationsStep = createStep(
       Modules.NOTIFICATION
     )
 
-    let emailAuditService: EmailAuditModuleService | undefined
-    try {
-      emailAuditService = container.resolve<EmailAuditModuleService>(EMAIL_AUDIT_MODULE)
-    } catch {}
-
     const sentCartIds: string[] = []
 
     for (const cart of input.carts) {
       try {
+        // Audit logging happens automatically inside the SMTP notification provider
         await notificationService.createNotifications({
           to: cart.email,
           channel: "email",
@@ -50,38 +44,7 @@ export const sendAbandonedNotificationsStep = createStep(
           },
         })
         sentCartIds.push(cart.id)
-
-        // Log to email audit (best-effort)
-        if (emailAuditService) {
-          try {
-            await emailAuditService.logEmail({
-              to: cart.email,
-              from: process.env.SMTP_FROM ?? "",
-              subject: `Carrito abandonado - Recordatorio #${cart.reminder_number}`,
-              email_type: "abandoned-cart",
-              status: "sent",
-              sent_at: new Date(),
-              metadata: { cart_id: cart.id, reminder_number: cart.reminder_number },
-            })
-          } catch (err) {
-            console.error("[EmailAudit] Failed to log abandoned cart email:", err)
-          }
-        }
       } catch (error) {
-        // Log failed email to audit
-        if (emailAuditService) {
-          try {
-            await emailAuditService.logEmail({
-              to: cart.email,
-              from: process.env.SMTP_FROM ?? "",
-              subject: `Carrito abandonado - Recordatorio #${cart.reminder_number}`,
-              email_type: "abandoned-cart",
-              status: "failed",
-              error: error instanceof Error ? error.message : String(error),
-              metadata: { cart_id: cart.id, reminder_number: cart.reminder_number },
-            })
-          } catch {}
-        }
         console.error(
           `Failed to send abandoned cart email #${cart.reminder_number} for cart ${cart.id}:`,
           error

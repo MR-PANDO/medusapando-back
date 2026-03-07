@@ -32,6 +32,13 @@ const TYPE_LABELS: Record<string, string> = {
   "payment-link": "Link de pago",
   "payment-status": "Estado de pago",
   "abandoned-cart": "Carrito abandonado",
+  "order-confirmation": "Confirmacion de pedido",
+  "order-shipped": "Pedido enviado",
+  "order-canceled": "Pedido cancelado",
+  "order-refund": "Reembolso",
+  "customer-welcome": "Bienvenida",
+  "password-reset": "Restablecer contrasena",
+  "invite-user": "Invitacion de usuario",
 }
 
 function formatDate(dateStr: string | null): string {
@@ -129,6 +136,13 @@ const EmailsPage = () => {
             { key: "payment-link", label: "Link de pago" },
             { key: "payment-status", label: "Estado de pago" },
             { key: "abandoned-cart", label: "Carrito abandonado" },
+            { key: "order-confirmation", label: "Confirmacion pedido" },
+            { key: "order-shipped", label: "Pedido enviado" },
+            { key: "order-canceled", label: "Pedido cancelado" },
+            { key: "order-refund", label: "Reembolso" },
+            { key: "password-reset", label: "Contrasena" },
+            { key: "customer-welcome", label: "Bienvenida" },
+            { key: "invite-user", label: "Invitacion" },
           ].map((f) => (
             <Button
               key={f.key}

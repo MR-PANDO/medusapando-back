@@ -1,6 +1,45 @@
 # Email Audit Module
 
-Custom Medusa v2 module that tracks all outgoing emails from the store. Every email sent (payment links, payment status notifications, abandoned cart reminders) is logged to the database with its delivery status.
+Custom Medusa v2 module that tracks **every outgoing email** from the platform. All emails — whether sent by custom modules (Wompi, abandoned carts) or by Medusa's notification system (order confirmations, password resets, etc.) — are logged to the database with their delivery status.
+
+## How ALL emails are captured
+
+There are two email sending paths in the platform. Both are instrumented:
+
+### Path 1: SMTP Notification Provider (Medusa system emails)
+
+All emails that go through Medusa's `INotificationModuleService.createNotifications()` are routed to the **SMTP notification provider** (`src/modules/smtp-notification/service.ts`). This provider logs every email to the audit table automatically — no caller-side changes needed.
+
+This covers: abandoned carts, order confirmations, password resets, user invitations, and any future Medusa notification templates.
+
+### Path 2: Direct sendEmail() (Custom module emails)
+
+Emails sent outside Medusa's notification system (e.g., Wompi payment links, payment status notifications) use the centralized `sendEmail()` utility from `src/utils/email-sender.ts`. Callers pass the optional `auditService` parameter.
+
+This covers: payment-link, payment-status emails.
+
+```
+                   +--------------------------+
+                   |    Email Audit Table      |
+                   |   (email_audit module)    |
+                   +-----------^--------------+
+                               |
+              +----------------+----------------+
+              |                                 |
+  SMTP Notification Provider          sendEmail() utility
+  (Medusa system emails)              (Custom module emails)
+              |                                 |
+  createNotifications()              sendPaymentLinkEmail()
+  - abandoned-cart                   sendPaymentStatusEmail()
+  - order-confirmation               (any future direct email)
+  - password-reset
+  - customer-welcome
+  - invite-user
+  - order-shipped
+  - order-canceled
+  - order-refund
+  - (any future template)
+```
 
 ## Architecture
 
@@ -12,6 +51,8 @@ src/
     types/index.ts           # EmailStatus, EmailType, LogEmailInput
     index.ts                 # Module registration (emailAudit)
     migrations/              # DB migration
+  modules/smtp-notification/
+    service.ts               # SMTP provider — auto-logs ALL notification emails
   utils/
     email-sender.ts          # Centralized sendEmail() with audit logging
     wompi-email.ts           # Payment email templates (uses email-sender)
@@ -19,17 +60,15 @@ src/
   admin/routes/emails/page.tsx  # Admin UI page
 ```
 
-### Flow
+### Audit Flow
 
 ```
-Caller (route/workflow)
-  -> sendEmail(params, auditService?)
-     1. Logs record as "queued"
-     2. Sends via nodemailer
-     3. Marks as "sent" or "failed" (with error message)
+1. Record created as "queued"
+2. Email sent via nodemailer
+3. Record updated to "sent" (with sent_at) or "failed" (with error message)
 ```
 
-Audit logging is **best-effort** — if logging fails, the email still sends. The `auditService` parameter is optional for backward compatibility.
+Audit logging is **best-effort** — if logging fails, the email still sends.
 
 ## Database
 
@@ -41,7 +80,7 @@ Table: `email_audit`
 | to          | TEXT        | Recipient email                                |
 | from        | TEXT        | Sender (SMTP_FROM)                             |
 | subject     | TEXT        | Email subject line                             |
-| email_type  | TEXT        | `payment-link`, `payment-status`, `abandoned-cart` |
+| email_type  | TEXT        | Template/type identifier (see table below)     |
 | status      | TEXT        | `queued`, `sent`, `failed`                     |
 | error       | TEXT (null) | Error message if failed                        |
 | metadata    | JSONB (null)| Extra context (order ref, cart ID, etc.)       |
@@ -54,11 +93,27 @@ Indexes: `status`, `email_type`, `created_at`, `to`, `deleted_at`
 
 ## Email Types
 
+### Custom module emails (via sendEmail utility)
+
 | Type              | Sender                          | Description                          |
 |-------------------|----------------------------------|--------------------------------------|
 | `payment-link`    | Generate link route              | Payment link sent to customer        |
 | `payment-status`  | Wompi webhook handler            | Payment status notification to admin |
-| `abandoned-cart`  | Abandoned cart workflow step      | Cart reminder sent to customer       |
+
+### Medusa system emails (via SMTP notification provider)
+
+| Type                  | Trigger                            | Description                          |
+|-----------------------|------------------------------------|--------------------------------------|
+| `abandoned-cart`      | Abandoned cart job/workflow         | Cart reminder sent to customer       |
+| `order-confirmation`  | Order placed                       | Order confirmation to customer       |
+| `order-shipped`       | Order fulfillment created          | Shipping notification to customer    |
+| `order-canceled`      | Order canceled                     | Cancellation notice to customer      |
+| `order-refund`        | Refund processed                   | Refund notification to customer      |
+| `customer-welcome`    | Customer account created           | Welcome email to new customer        |
+| `password-reset`      | Password reset requested           | Reset link sent to customer          |
+| `invite-user`         | Admin user invited                 | Invitation email to new admin user   |
+
+> The `email_type` field stores the Medusa notification `template` name. Any new template added to the SMTP notification provider is automatically tracked — no changes to the audit module needed.
 
 ## Setup
 
@@ -92,7 +147,8 @@ No new env vars required. Uses existing SMTP variables:
 Accessible at `/admin/emails` (sidebar: "Correos").
 
 ### Features
-- **Filters** by status (En cola / Enviado / Fallido) and type (Link de pago / Estado de pago / Carrito abandonado)
+- **Status filters**: Todos / En cola / Enviado / Fallido
+- **Type filters**: Todos / Link de pago / Estado de pago / Carrito abandonado / Confirmacion pedido / Pedido enviado / Pedido cancelado / Reembolso / Contrasena / Bienvenida / Invitacion
 - **Pagination** (25 per page)
 - **Expandable rows** — click any row to see sender, error details, and metadata
 - **Total count** displayed
@@ -135,48 +191,66 @@ List emails with optional filters.
 
 ## Development
 
-### Adding a new email type
+### Adding a new Medusa notification template
 
-1. Add the type to `src/modules/email-audit/types/index.ts`:
+When adding a new template to the SMTP notification provider, it is **automatically tracked** by the audit module. Just:
+
+1. Add the template case in `src/modules/smtp-notification/service.ts`:
 ```ts
-export type EmailType =
-  | "abandoned-cart"
-  | "payment-link"
-  | "payment-status"
-  | "order-confirmation"  // new
-  | string
+case "order-confirmation":
+  subject = "Tu pedido ha sido confirmado"
+  html = orderConfirmationTemplate(data)
+  break
 ```
 
-2. Create or update the email template function.
+2. (Optional) Add the type to `src/modules/email-audit/types/index.ts` for documentation:
+```ts
+export type EmailType =
+  | "order-confirmation"  // new
+  | ...
+```
 
-3. Use `sendEmail()` from `src/utils/email-sender.ts`:
+3. Add the label to the admin UI in `src/admin/routes/emails/page.tsx`:
+```ts
+const TYPE_LABELS: Record<string, string> = {
+  "order-confirmation": "Confirmacion de pedido",
+}
+```
+And add a button entry in the type filter array.
+
+> The audit module uses the notification `template` name as the `email_type`. Unknown types still display in the UI — they just show the raw type string.
+
+### Adding a direct (non-notification) email
+
+For emails sent outside Medusa's notification system:
+
+1. Use `sendEmail()` from `src/utils/email-sender.ts`:
 ```ts
 import { sendEmail } from "../utils/email-sender"
 import type EmailAuditModuleService from "../modules/email-audit/service"
 
-// Resolve the service from container
 const emailAuditService = container.resolve<EmailAuditModuleService>("emailAudit")
 
 await sendEmail(
   {
     to: "customer@example.com",
-    subject: "Order confirmed",
+    subject: "Your receipt",
     html: "<h1>Thanks!</h1>",
-    email_type: "order-confirmation",
+    email_type: "receipt",
     metadata: { order_id: "order_123" },
   },
   emailAuditService
 )
 ```
 
-4. Add the label to the admin UI in `src/admin/routes/emails/page.tsx`:
-```ts
-const TYPE_LABELS: Record<string, string> = {
-  "order-confirmation": "Confirmacion de pedido",
-  // ...existing
-}
-```
-And add a `<Select.Item>` in the type filter.
+2. Add the type and label as described above.
+
+### IMPORTANT: All new modules that send email MUST use one of these two paths
+
+- **Medusa notifications**: add a template to the SMTP notification provider (automatically tracked)
+- **Direct emails**: use `sendEmail()` from `src/utils/email-sender.ts` with the audit service
+
+Never use `nodemailer` directly. This ensures 100% email tracking.
 
 ### Service methods
 
@@ -212,8 +286,8 @@ const [emails, count] = await emailAuditService.listByFilters({
 | `src/modules/email-audit/types/index.ts` | TypeScript types |
 | `src/modules/email-audit/index.ts` | Module definition |
 | `src/modules/email-audit/migrations/Migration20260307200000.ts` | Database migration |
+| `src/modules/smtp-notification/service.ts` | SMTP provider — auto-logs ALL notification emails |
 | `src/utils/email-sender.ts` | Centralized email sending with audit |
 | `src/utils/wompi-email.ts` | Wompi payment email templates |
 | `src/api/admin/emails/route.ts` | Admin API for listing emails |
 | `src/admin/routes/emails/page.tsx` | Admin UI page |
-| `src/workflows/steps/send-abandoned-notifications.ts` | Abandoned cart step (logs to audit) |

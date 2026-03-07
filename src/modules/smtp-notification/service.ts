@@ -7,6 +7,8 @@ import {
   abandonedCartTemplate,
   getAbandonedCartSubject,
 } from "./templates/abandoned-cart"
+import type EmailAuditModuleService from "../../modules/email-audit/service"
+import { EMAIL_AUDIT_MODULE } from "../../modules/email-audit"
 
 type SmtpOptions = {
   host: string
@@ -37,10 +39,12 @@ class SmtpNotificationService extends AbstractNotificationProviderService {
   private transporter: Transporter
   private from: string
   private storefrontUrl: string
+  private container: Record<string, unknown>
 
   constructor(container: Record<string, unknown>, options: SmtpOptions) {
     super()
 
+    this.container = container
     this.from = options.from
     this.storefrontUrl = options.storefront_url
 
@@ -53,6 +57,16 @@ class SmtpNotificationService extends AbstractNotificationProviderService {
         pass: options.auth.pass,
       },
     })
+  }
+
+  private getAuditService(): EmailAuditModuleService | null {
+    try {
+      return (this.container as any).resolve
+        ? (this.container as any).resolve(EMAIL_AUDIT_MODULE)
+        : null
+    } catch {
+      return null
+    }
   }
 
   async send(
@@ -80,14 +94,54 @@ class SmtpNotificationService extends AbstractNotificationProviderService {
         )
     }
 
-    const info = await this.transporter.sendMail({
-      from: this.from,
-      to,
-      subject,
-      html,
-    })
+    // Log as queued (best-effort)
+    const auditService = this.getAuditService()
+    let auditId: string | null = null
+    if (auditService) {
+      try {
+        const record = await auditService.logEmail({
+          to,
+          from: this.from,
+          subject,
+          email_type: template,
+          status: "queued",
+          metadata: data as Record<string, any>,
+        })
+        auditId = record.id
+      } catch (err) {
+        console.error("[EmailAudit] Failed to log queued notification:", err)
+      }
+    }
 
-    return { id: info.messageId }
+    try {
+      const info = await this.transporter.sendMail({
+        from: this.from,
+        to,
+        subject,
+        html,
+      })
+
+      // Mark as sent
+      if (auditService && auditId) {
+        try {
+          await auditService.markSent(auditId)
+        } catch (err) {
+          console.error("[EmailAudit] Failed to mark notification as sent:", err)
+        }
+      }
+
+      return { id: info.messageId }
+    } catch (error: any) {
+      // Mark as failed
+      if (auditService && auditId) {
+        try {
+          await auditService.markFailed(auditId, error.message ?? String(error))
+        } catch (err) {
+          console.error("[EmailAudit] Failed to mark notification as failed:", err)
+        }
+      }
+      throw error
+    }
   }
 }
 

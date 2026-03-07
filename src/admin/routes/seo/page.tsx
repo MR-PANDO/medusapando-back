@@ -414,7 +414,7 @@ const SeoManagerPage = () => {
                   </Table.Row>
                   {expandedSlug === page.slug && (
                     <Table.Row key={`${page.slug}-form`}>
-                      <Table.Cell colSpan={5} className="p-0">
+                      <td colSpan={5} className="p-0">
                         <div className="border-t">
                           <SeoForm
                             resourceType="page"
@@ -422,7 +422,7 @@ const SeoManagerPage = () => {
                             onSave={fetchAllScores}
                           />
                         </div>
-                      </Table.Cell>
+                      </td>
                     </Table.Row>
                   )}
                 </>

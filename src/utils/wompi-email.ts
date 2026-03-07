@@ -1,18 +1,5 @@
-import nodemailer from "nodemailer"
-
-// -- Shared utilities --
-
-function createTransporter() {
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT) || 587,
-    secure: process.env.SMTP_SECURE === "true",
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  })
-}
+import { sendEmail } from "./email-sender"
+import type EmailAuditModuleService from "../modules/email-audit/service"
 
 function formatCOP(amountInCents: number): string {
   return new Intl.NumberFormat("es-CO", {
@@ -93,6 +80,7 @@ type PaymentLinkEmailParams = {
     thumbnail?: string
     unit_price?: number
   }>
+  auditService?: EmailAuditModuleService
 }
 
 export async function sendPaymentLinkEmail(params: PaymentLinkEmailParams) {
@@ -168,14 +156,18 @@ export async function sendPaymentLinkEmail(params: PaymentLinkEmailParams) {
       Si no solicitaste este pago, puedes ignorar este mensaje.
     </p>`
 
-  const transporter = createTransporter()
+  const subject = `Tu link de pago - Pedido #${params.reference} | ${STORE_NAME}`
 
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM,
-    to: params.to,
-    subject: `Tu link de pago - Pedido #${params.reference} | ${STORE_NAME}`,
-    html: emailWrapper(content),
-  })
+  await sendEmail(
+    {
+      to: params.to,
+      subject,
+      html: emailWrapper(content),
+      email_type: "payment-link",
+      metadata: { reference: params.reference, amountInCents: params.amountInCents },
+    },
+    params.auditService
+  )
 }
 
 // -- Payment Status Email (sent to payment manager) --
@@ -189,6 +181,7 @@ type PaymentStatusEmailParams = {
   currency?: string
   customerEmail?: string
   paymentMethodType?: string
+  auditService?: EmailAuditModuleService
 }
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -244,12 +237,20 @@ export async function sendPaymentStatusEmail(
       </tr>
     </table>`
 
-  const transporter = createTransporter()
+  const subject = `Pago ${label} - Pedido ${params.orderId} | ${STORE_NAME}`
 
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM,
-    to: params.to,
-    subject: `Pago ${label} - Pedido ${params.orderId} | ${STORE_NAME}`,
-    html: emailWrapper(content),
-  })
+  await sendEmail(
+    {
+      to: params.to,
+      subject,
+      html: emailWrapper(content),
+      email_type: "payment-status",
+      metadata: {
+        orderId: params.orderId,
+        transactionId: params.transactionId,
+        wompiStatus: params.wompiStatus,
+      },
+    },
+    params.auditService
+  )
 }

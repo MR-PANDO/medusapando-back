@@ -4,11 +4,8 @@ import { WOMPI_MODULE } from "../../../../modules/wompi"
 import type WompiModuleService from "../../../../modules/wompi/service"
 import { WOMPI_ORDER_STATUSES } from "../../../../modules/wompi/types"
 import { sendPaymentLinkEmail } from "../../../../utils/wompi-email"
-
-// GET /admin/wompi/generate-link - Health check (temporary debug)
-export const GET = async (_req: MedusaRequest, res: MedusaResponse) => {
-  res.json({ status: "ok", route: "generate-link" })
-}
+import { EMAIL_AUDIT_MODULE } from "../../../../modules/email-audit"
+import type EmailAuditModuleService from "../../../../modules/email-audit/service"
 
 // POST /admin/wompi/generate-link
 // Body: { order_id: string }
@@ -51,14 +48,6 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
     // Step 3: Calculate total
     const reference = order.display_id?.toString() ?? order.id
-
-    // Debug: log available total fields
-    console.log("[Wompi] Order fields:", {
-      total: order.total,
-      summary: order.summary,
-      item_total: order.item_total,
-      currency_code: order.currency_code,
-    })
 
     // Extract total — Medusa v2 BigNumber or plain number
     const rawTotal = order.total ?? order.summary?.current_order_total ?? 0
@@ -138,6 +127,11 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           unit_price: item.unit_price,
         }))
 
+        let emailAuditService: EmailAuditModuleService | undefined
+        try {
+          emailAuditService = req.scope.resolve<EmailAuditModuleService>(EMAIL_AUDIT_MODULE)
+        } catch {}
+
         await sendPaymentLinkEmail({
           to: order.email,
           customerName,
@@ -145,6 +139,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           amountInCents,
           checkoutUrl,
           items,
+          auditService: emailAuditService,
         })
       } catch (emailErr) {
         console.error(

@@ -5,6 +5,8 @@ import { WOMPI_MODULE } from "../../../../modules/wompi"
 import type WompiModuleService from "../../../../modules/wompi/service"
 import { WOMPI_ORDER_STATUSES } from "../../../../modules/wompi/types"
 import { sendPaymentStatusEmail } from "../../../../utils/wompi-email"
+import { EMAIL_AUDIT_MODULE } from "../../../../modules/email-audit"
+import type EmailAuditModuleService from "../../../../modules/email-audit/service"
 
 // Public endpoint — Wompi sends webhooks without auth tokens
 export const AUTHENTICATE = false
@@ -149,6 +151,11 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         settings.emailNotificationsEnabled &&
         settings.paymentManagerEmail
       ) {
+        let emailAuditService: EmailAuditModuleService | undefined
+        try {
+          emailAuditService = req.scope.resolve<EmailAuditModuleService>(EMAIL_AUDIT_MODULE)
+        } catch {}
+
         await sendPaymentStatusEmail({
           to: settings.paymentManagerEmail,
           orderId: orderId ?? "unknown",
@@ -157,6 +164,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           amountInCents: amountInCents ?? 0,
           customerEmail: customerEmail ?? undefined,
           paymentMethodType: paymentMethodType ?? undefined,
+          auditService: emailAuditService,
         })
       }
     } catch (err) {

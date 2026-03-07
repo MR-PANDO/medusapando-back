@@ -1,5 +1,5 @@
-import es from "./json/es.json" with { type: "json" }
-import en from "./json/en.json" with { type: "json" }
+import es from "./json/es.json"
+import en from "./json/en.json"
 
 export default {
   es: { translation: es },

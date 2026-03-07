@@ -44,6 +44,10 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/content-translation",
     },
+    // Email Audit Module - email sending log and tracking
+    {
+      resolve: "./src/modules/email-audit",
+    },
     // Wompi Module - payment link tracking and admin panel
     {
       resolve: "./src/modules/wompi",

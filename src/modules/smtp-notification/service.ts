@@ -7,6 +7,30 @@ import {
   abandonedCartTemplate,
   getAbandonedCartSubject,
 } from "./templates/abandoned-cart"
+import {
+  customerWelcomeTemplate,
+  customerWelcomeSubject,
+} from "./templates/customer-welcome"
+import {
+  passwordResetTemplate,
+  passwordResetSubject,
+} from "./templates/password-reset"
+import {
+  orderPlacedTemplate,
+  orderPlacedSubject,
+} from "./templates/order-placed"
+import {
+  orderCanceledTemplate,
+  orderCanceledSubject,
+} from "./templates/order-canceled"
+import {
+  orderShippedTemplate,
+  orderShippedSubject,
+} from "./templates/order-shipped"
+import {
+  inviteUserTemplate,
+  inviteUserSubject,
+} from "./templates/invite-user"
 import type EmailAuditModuleService from "../../modules/email-audit/service"
 import { EMAIL_AUDIT_MODULE } from "../../modules/email-audit"
 
@@ -77,15 +101,38 @@ class SmtpNotificationService extends AbstractNotificationProviderService {
     let subject: string
     let html: string
 
+    const templateData = { ...data, storefront_url: this.storefrontUrl }
+
     switch (template) {
       case "abandoned-cart":
         subject = getAbandonedCartSubject(
           (data.reminder_number as number) || 1
         )
-        html = abandonedCartTemplate({
-          ...data,
-          storefront_url: this.storefrontUrl,
-        })
+        html = abandonedCartTemplate(templateData)
+        break
+      case "customer-welcome":
+        subject = customerWelcomeSubject()
+        html = customerWelcomeTemplate(templateData)
+        break
+      case "password-reset":
+        subject = passwordResetSubject()
+        html = passwordResetTemplate(templateData)
+        break
+      case "order-placed":
+        subject = orderPlacedSubject(templateData)
+        html = orderPlacedTemplate(templateData)
+        break
+      case "order-canceled":
+        subject = orderCanceledSubject(templateData)
+        html = orderCanceledTemplate(templateData)
+        break
+      case "order-shipped":
+        subject = orderShippedSubject(templateData)
+        html = orderShippedTemplate(templateData)
+        break
+      case "invite-user":
+        subject = inviteUserSubject()
+        html = inviteUserTemplate(templateData)
         break
       default:
         throw new MedusaError(

@@ -702,10 +702,21 @@ curl -X POST https://your-backend.com/hooks/wompi/events \
 
 ### Common Issues
 
+**Docker build fails after adding Wompi**
+- The `medusa build` command loads `medusa-config.ts` which runs `validateOptions()` on the Wompi provider
+- If `WOMPI_PUBLIC_KEY`, `WOMPI_PRIVATE_KEY`, or `WOMPI_EVENTS_SECRET` are missing, the build crashes
+- **Fix:** Dummy values are set in the Dockerfile builder stage — if you see this error, ensure the Dockerfile has the dummy `WOMPI_*` ENV vars in the builder stage
+- The production stage uses real values passed as Coolify Build Variables (ARGs)
+
 **"Wompi payment provider not configured"**
 - Check that `WOMPI_PUBLIC_KEY`, `WOMPI_PRIVATE_KEY`, and `WOMPI_EVENTS_SECRET` are set
 - Ensure the payment provider is registered in `medusa-config.ts`
 - Run `npx medusa db:migrate` after adding the module
+
+**Worker crashes at startup**
+- The worker loads `medusa-config.ts` which registers the Wompi payment provider
+- `validateOptions()` requires all 3 keys even if the worker never handles payments
+- **Fix:** Add all 5 `WOMPI_*` env vars to the worker service in Coolify
 
 **Webhook returns 401**
 - Verify `WOMPI_EVENTS_SECRET` matches the secret in Wompi Dashboard

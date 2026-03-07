@@ -24,7 +24,11 @@ ENV DATABASE_URL=postgres://localhost:5432/medusa \
     JWT_SECRET=build-secret \
     COOKIE_SECRET=build-secret \
     WORKER_MODE=worker \
-    DISABLE_ADMIN=true
+    DISABLE_ADMIN=true \
+    WOMPI_PUBLIC_KEY=pub_test_build \
+    WOMPI_PRIVATE_KEY=prv_test_build \
+    WOMPI_EVENTS_SECRET=build_secret \
+    WOMPI_ENVIRONMENT=sandbox
 
 # Increase Node memory for build
 ENV NODE_OPTIONS="--max-old-space-size=4096"

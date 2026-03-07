@@ -2,7 +2,6 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
 import { WOMPI_MODULE } from "../../../../modules/wompi"
 import type WompiModuleService from "../../../../modules/wompi/service"
-import WompiPaymentProviderService from "../../../../providers/payment-wompi/service"
 import { WOMPI_ORDER_STATUSES } from "../../../../modules/wompi/types"
 import { sendPaymentLinkEmail } from "../../../../utils/wompi-email"
 
@@ -39,17 +38,6 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(404).json({ error: "Order not found" })
   }
 
-  // Resolve the wompi payment provider from the container
-  // Provider ID format: pp_{identifier}_{configId}
-  let wompiProvider: WompiPaymentProviderService
-  try {
-    wompiProvider = req.scope.resolve("pp_wompi_wompi")
-  } catch {
-    return res
-      .status(500)
-      .json({ error: "Wompi payment provider not configured" })
-  }
-
   const reference = order.display_id?.toString() ?? order.id
   const amountInCents = order.total ?? 0
 
@@ -68,8 +56,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       },
     ])
 
+    // Create payment link via Wompi Module service (the Medusa v2 way)
     const { paymentLinkId, checkoutUrl } =
-      await wompiProvider.createPaymentLink({
+      await wompiService.createPaymentLink({
         orderId: order.id,
         reference,
         amountInCents,

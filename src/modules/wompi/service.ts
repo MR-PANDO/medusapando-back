@@ -1,10 +1,89 @@
 import { MedusaService } from "@medusajs/framework/utils"
 import { WompiPayment } from "./models/wompi-payment"
-import { WompiSettings } from "./types"
+import {
+  WompiSettings,
+  CreatePaymentLinkParams,
+  CreatePaymentLinkResult,
+} from "./types"
+
+const WOMPI_API_URLS = {
+  sandbox: "https://sandbox.wompi.co/v1",
+  production: "https://production.wompi.co/v1",
+} as const
 
 class WompiModuleService extends MedusaService({
   WompiPayment,
 }) {
+  private getApiConfig() {
+    const privateKey = process.env.WOMPI_PRIVATE_KEY
+    const environment = (process.env.WOMPI_ENVIRONMENT ?? "sandbox") as
+      | "sandbox"
+      | "production"
+
+    if (!privateKey) {
+      throw new Error(
+        "WOMPI_PRIVATE_KEY is not configured. Add it to your environment variables."
+      )
+    }
+
+    return {
+      privateKey,
+      apiUrl: WOMPI_API_URLS[environment],
+    }
+  }
+
+  async createPaymentLink(
+    params: CreatePaymentLinkParams
+  ): Promise<CreatePaymentLinkResult> {
+    const { privateKey, apiUrl } = this.getApiConfig()
+    const storefrontUrl = process.env.STOREFRONT_URL || ""
+
+    const body: Record<string, any> = {
+      name: `Order ${params.reference}`,
+      description: `Payment for order ${params.reference}`,
+      single_use: true,
+      collect_shipping: false,
+      currency: params.currency || "COP",
+      amount_in_cents: params.amountInCents,
+      redirect_url:
+        params.redirectUrl || `${storefrontUrl}/order/confirmed`,
+    }
+
+    if (params.expiresAt) {
+      body.expires_at = params.expiresAt
+    }
+
+    if (params.customerEmail) {
+      body.customer_data = {
+        email: params.customerEmail,
+        full_name: params.customerName ?? "",
+      }
+    }
+
+    const response = await fetch(`${apiUrl}/payment_links`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${privateKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    })
+
+    if (!response.ok) {
+      const errorBody = await response.text()
+      throw new Error(
+        `Wompi payment link creation failed (${response.status}): ${errorBody}`
+      )
+    }
+
+    const data = await response.json()
+
+    return {
+      paymentLinkId: data.data.id,
+      checkoutUrl: data.data.permalink,
+    }
+  }
+
   async getSettings(): Promise<WompiSettings> {
     return {
       paymentManagerEmail: process.env.WOMPI_PAYMENT_MANAGER_EMAIL ?? "",

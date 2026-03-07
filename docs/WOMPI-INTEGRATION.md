@@ -27,6 +27,37 @@
 
 ---
 
+## Quick Start — First-Time Setup
+
+1. **Add env vars** to both Coolify services (server + worker):
+   ```env
+   WOMPI_PUBLIC_KEY=pub_test_xxxxxxxxxxxxxxxxxxxxxx
+   WOMPI_PRIVATE_KEY=prv_test_xxxxxxxxxxxxxxxxxxxxxx
+   WOMPI_EVENTS_SECRET=test_events_xxxxxxxxxxxxxxxxxxxxxx
+   WOMPI_ENVIRONMENT=sandbox
+   WOMPI_PAYMENT_MANAGER_EMAIL=payments@yourstore.com
+   ```
+
+2. **Deploy backend** — the Dockerfile already has dummy build vars so `medusa build` won't fail
+
+3. **Run migrations** (happens automatically on deploy, or manually):
+   ```bash
+   npx medusa db:migrate
+   ```
+
+4. **Enable Wompi in your region** — Go to Medusa Admin → Settings → Regions → Colombia → Payment Providers → enable **Wompi**
+
+5. **Set webhook URL in Wompi Dashboard** — Go to Wompi Dashboard → Developers → Transaction Tracking → set URL to:
+   ```
+   https://your-backend-domain.com/hooks/wompi/events
+   ```
+
+6. **Generate your first payment link** — Go to Medusa Admin → Orders → open an order → on the right sidebar you'll see the **Wompi** widget → click **"Generar link de pago"**
+
+7. **Verify** — The customer receives a branded email with a "Pagar ahora" button. After payment, the webhook updates the order status and notifies the payment manager.
+
+---
+
 ## Overview
 
 This integration adds Wompi (Colombian payment gateway) to the MedusaJS v2 backend. The flow is admin-initiated: an admin generates a payment link for an order, the link is emailed to the customer, and when the customer pays, Wompi sends a webhook to update the order status.

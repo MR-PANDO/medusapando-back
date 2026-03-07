@@ -22,10 +22,6 @@ import type {
   ProviderWebhookPayload,
 } from "@medusajs/types"
 import { validateWompiSignature } from "../../utils/wompi-signature"
-import type {
-  CreatePaymentLinkParams,
-  CreatePaymentLinkResult,
-} from "../../modules/wompi/types"
 
 type WompiProviderOptions = {
   publicKey: string
@@ -69,59 +65,6 @@ class WompiPaymentProviderService extends AbstractPaymentProvider<WompiProviderO
     this.privateKey = options.privateKey
     this.eventsSecret = options.eventsSecret
     this.apiUrl = API_URLS[options.environment ?? "sandbox"]
-  }
-
-  // -- Payment link creation (called from workflow/subscriber) --
-
-  async createPaymentLink(
-    params: CreatePaymentLinkParams
-  ): Promise<CreatePaymentLinkResult> {
-    const storefrontUrl = process.env.STOREFRONT_URL || ""
-
-    const body: Record<string, any> = {
-      name: `Order ${params.reference}`,
-      description: `Payment for order ${params.reference}`,
-      single_use: true,
-      collect_shipping: false,
-      currency: params.currency || "COP",
-      amount_in_cents: params.amountInCents,
-      redirect_url:
-        params.redirectUrl || `${storefrontUrl}/order/confirmed`,
-    }
-
-    if (params.expiresAt) {
-      body.expires_at = params.expiresAt
-    }
-
-    if (params.customerEmail) {
-      body.customer_data = {
-        email: params.customerEmail,
-        full_name: params.customerName ?? "",
-      }
-    }
-
-    const response = await fetch(`${this.apiUrl}/payment_links`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.privateKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    })
-
-    if (!response.ok) {
-      const errorBody = await response.text()
-      throw new Error(
-        `Wompi payment link creation failed (${response.status}): ${errorBody}`
-      )
-    }
-
-    const data = await response.json()
-
-    return {
-      paymentLinkId: data.data.id,
-      checkoutUrl: data.data.permalink,
-    }
   }
 
   // -- Get transaction status from Wompi --

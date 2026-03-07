@@ -32,18 +32,40 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   let order: any
   try {
     order = await orderService.retrieveOrder(order_id, {
-      relations: ["items", "shipping_address"],
+      relations: [
+        "items",
+        "items.tax_lines",
+        "items.adjustments",
+        "shipping_address",
+        "shipping_methods",
+        "shipping_methods.tax_lines",
+        "shipping_methods.adjustments",
+        "summary",
+      ],
     })
   } catch {
     return res.status(404).json({ error: "Order not found" })
   }
 
   const reference = order.display_id?.toString() ?? order.id
-  const amountInCents = order.total ?? 0
 
-  if (amountInCents <= 0) {
-    return res.status(400).json({ error: "Order total must be greater than 0" })
+  // In Medusa v2, order.total is a computed BigNumber field.
+  // Extract the numeric value from BigNumber or plain number.
+  const rawTotal =
+    order.total ?? order.summary?.current_order_total ?? 0
+  const orderTotal = typeof rawTotal === "object"
+    ? Number(rawTotal.value ?? rawTotal.numeric ?? 0)
+    : Number(rawTotal)
+
+  if (!orderTotal || orderTotal <= 0) {
+    return res
+      .status(400)
+      .json({ error: `Order total must be greater than 0 (got ${orderTotal})` })
   }
+
+  // Medusa v2 stores COP amounts as whole pesos (0 decimal places).
+  // Wompi expects amount_in_cents: 28800 COP → 2880000 centavos.
+  const amountInCents = Math.round(orderTotal * 100)
 
   try {
     // Update order status to generating

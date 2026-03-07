@@ -1,6 +1,5 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
-import { Modules } from "@medusajs/framework/utils"
-import { INotificationModuleService } from "@medusajs/framework/types"
+import { notifyWithAudit } from "../../utils/notify-with-audit"
 
 type AbandonedCartItem = {
   title?: string
@@ -23,16 +22,11 @@ export type SendAbandonedNotificationsInput = {
 export const sendAbandonedNotificationsStep = createStep(
   "send-abandoned-notifications",
   async (input: SendAbandonedNotificationsInput, { container }) => {
-    const notificationService: INotificationModuleService = container.resolve(
-      Modules.NOTIFICATION
-    )
-
     const sentCartIds: string[] = []
 
     for (const cart of input.carts) {
       try {
-        // Audit logging happens automatically inside the SMTP notification provider
-        await notificationService.createNotifications({
+        await notifyWithAudit(container, {
           to: cart.email,
           channel: "email",
           template: "abandoned-cart",

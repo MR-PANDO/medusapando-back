@@ -1,5 +1,6 @@
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 import { Modules } from "@medusajs/framework/utils"
+import { notifyWithAudit } from "../utils/notify-with-audit"
 
 export default async function inviteCreatedHandler({
   event: { data },
@@ -14,8 +15,7 @@ export default async function inviteCreatedHandler({
     const backendUrl = process.env.BACKEND_URL || "http://localhost:9000"
     const inviteLink = `${backendUrl}/app/invite?token=${invite.token}`
 
-    const notificationService = container.resolve(Modules.NOTIFICATION) as any
-    await notificationService.createNotifications({
+    await notifyWithAudit(container, {
       to: invite.email,
       channel: "email",
       template: "invite-user",

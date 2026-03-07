@@ -1,5 +1,6 @@
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 import { Modules } from "@medusajs/framework/utils"
+import { notifyWithAudit } from "../utils/notify-with-audit"
 
 export default async function orderPlacedHandler({
   event: { data },
@@ -19,8 +20,7 @@ export default async function orderPlacedHandler({
         ? Number(rawTotal.value ?? rawTotal.numeric ?? rawTotal)
         : Number(rawTotal)
 
-    const notificationService = container.resolve(Modules.NOTIFICATION) as any
-    await notificationService.createNotifications({
+    await notifyWithAudit(container, {
       to: order.email,
       channel: "email",
       template: "order-placed",

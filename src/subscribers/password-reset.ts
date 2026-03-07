@@ -1,5 +1,5 @@
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
-import { Modules } from "@medusajs/framework/utils"
+import { notifyWithAudit } from "../utils/notify-with-audit"
 
 export default async function passwordResetHandler({
   event: { data },
@@ -17,9 +17,8 @@ export default async function passwordResetHandler({
       process.env.STOREFRONT_URL || "https://nutrimercados.com"
     const resetUrl = `${storefrontUrl}/co/account/reset-password?token=${data.token}&email=${data.entity_id}`
 
-    const notificationService = container.resolve(Modules.NOTIFICATION) as any
-    await notificationService.createNotifications({
-      to: data.entity_id, // entity_id is the email for auth identity
+    await notifyWithAudit(container, {
+      to: data.entity_id,
       channel: "email",
       template: "password-reset",
       data: {

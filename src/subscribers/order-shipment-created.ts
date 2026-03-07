@@ -1,5 +1,6 @@
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 import { Modules } from "@medusajs/framework/utils"
+import { notifyWithAudit } from "../utils/notify-with-audit"
 
 export default async function orderShipmentCreatedHandler({
   event: { data },
@@ -16,20 +17,16 @@ export default async function orderShipmentCreatedHandler({
       relations: ["labels"],
     })
 
-    // Get the order from fulfillment
     const orderService = container.resolve(Modules.ORDER) as any
 
-    // Try to find the order via the fulfillment's order_id or through query
     let order: any = null
     try {
-      // Medusa v2 links fulfillments to orders — try direct lookup
       const orders = await orderService.listOrders(
         { id: fulfillment.order_id },
         { relations: ["shipping_address"] }
       )
       order = orders?.[0]
     } catch {
-      // If order_id not directly on fulfillment, skip
       return
     }
 
@@ -44,8 +41,7 @@ export default async function orderShipmentCreatedHandler({
       fulfillment.labels?.[0]?.tracking_url ??
       null
 
-    const notificationService = container.resolve(Modules.NOTIFICATION) as any
-    await notificationService.createNotifications({
+    await notifyWithAudit(container, {
       to: order.email,
       channel: "email",
       template: "order-shipped",

@@ -4,15 +4,15 @@ import { WOMPI_MODULE } from "../../../../modules/wompi"
 import type WompiModuleService from "../../../../modules/wompi/service"
 import { WOMPI_ORDER_STATUSES } from "../../../../modules/wompi/types"
 import { sendPaymentLinkEmail } from "../../../../utils/wompi-email"
+import type { PostAdminGenerateWompiLinkType } from "../validators"
 
 // POST /admin/wompi/generate-link
 // Body: { order_id: string }
-export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
-  const { order_id } = req.body as { order_id?: string }
-
-  if (!order_id || typeof order_id !== "string") {
-    return res.status(400).json({ error: "order_id is required" })
-  }
+export const POST = async (
+  req: MedusaRequest<PostAdminGenerateWompiLinkType>,
+  res: MedusaResponse
+) => {
+  const { order_id } = req.validatedBody
 
   try {
     const orderService = req.scope.resolve(Modules.ORDER) as any

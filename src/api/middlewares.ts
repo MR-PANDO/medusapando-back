@@ -15,7 +15,6 @@ import {
   PostAdminCreateTranslation,
   PostAdminBatchTranslations,
 } from "./admin/translations/validators"
-import { PostAdminGenerateWompiLink } from "./admin/wompi/validators"
 
 export default defineMiddlewares({
   routes: [
@@ -66,11 +65,11 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [validateAndTransformBody(PostAdminBatchTranslations)],
     },
-    // Wompi validation middlewares
+    // Wompi - ensure body parser is enabled for generate-link
     {
       matcher: "/admin/wompi/generate-link",
       method: "POST",
-      middlewares: [validateAndTransformBody(PostAdminGenerateWompiLink)],
+      bodyParser: { sizeLimit: "1mb" },
     },
   ],
 })

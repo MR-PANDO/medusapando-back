@@ -2,82 +2,181 @@
 
 Automated 3-email drip campaign for abandoned carts, plus a customer-facing section in the account dashboard to recover their cart.
 
-## How It Works
+## What Is An "Abandoned Cart"?
 
-A scheduled job runs daily at midnight, finds incomplete carts with items, and sends up to 3 recovery emails over a week. Customers can also see their most recent abandoned cart in their account overview page and recover it with one click.
+In Medusa, every time a customer adds items to their cart, a `cart` record is created in the database. When they complete checkout, `completed_at` is set and the cart becomes an order. If the customer leaves without checking out, the cart stays in the database with `completed_at: null` — that's an abandoned cart.
 
-## Drip Schedule
+**There is no separate "abandoned cart" table.** The system uses Medusa's existing `cart` table and its `metadata` JSON field to track notification state. A cart is considered abandoned when:
 
-| Email | Timing | Subject (ES) |
-|-------|--------|--------------|
-| 1 | 24h after last cart update | "Tu carrito te espera en NutriMercados" |
-| 2 | 72h (3 days) after email 1 | "No olvides tu carrito! Tus productos te esperan" |
-| 3 | 144h (6 days) after email 1 | "Ultima oportunidad — tu carrito expira pronto" |
+1. `completed_at` is `null` (never turned into an order)
+2. It has at least one item
+3. It has an email (either from the customer account or entered at checkout)
+4. It was last updated more than 24 hours ago
 
-Emails stop after all 3 are sent or 7 days after the first email (whichever comes first).
+## How Carts Get Saved
 
-## Cart Metadata
+Carts are saved automatically by Medusa's core — no custom code needed for this part:
 
-The drip state is tracked entirely via cart `metadata`:
+1. **Guest visitor** adds items to cart → Medusa creates a cart record, frontend stores `cart_id` in a cookie (`_medusa_cart_id`)
+2. **Logged-in customer** adds items → same as above, but the cart also has `customer_id` set
+3. Customer enters email at checkout → cart's `email` field is set
+4. Customer leaves without completing → cart stays in DB with items intact
+5. Cart cookie expires or customer clears browser → cart is "lost" from the customer's perspective, but still exists in the database
 
-| Key | Type | Description |
-|-----|------|-------------|
-| `abandoned_notify_count` | number (0-3) | How many emails have been sent |
-| `abandoned_first_notified_at` | ISO string | Timestamp of the first email sent |
+The recovery system reconnects the customer to this orphaned cart.
 
-A cart with `abandoned_notify_count: 3` is considered fully notified and will be skipped by the job.
+## Drip Schedule — 3 Emails Over 1 Week
 
-## Architecture
+A cron job runs **every day at midnight** (`0 0 * * *`). Each run checks all incomplete carts and decides which ones need an email.
+
+| Email | When to Send | Subject (ES) | CTA Button |
+|-------|-------------|--------------|------------|
+| 1 | 24h after cart's last `updated_at` | "Tu carrito te espera en NutriMercados" | "Completar mi compra" |
+| 2 | 72h (3 days) after email 1 was sent | "No olvides tu carrito! Tus productos te esperan" | "Volver a mi carrito" |
+| 3 | 144h (6 days) after email 1 was sent | "Ultima oportunidad — tu carrito expira pronto" | "Completar mi compra ahora" |
+
+**Stop conditions** — no more emails are sent when:
+- All 3 emails have been sent (`abandoned_notify_count >= 3`)
+- More than 7 days (168h) have passed since the first email (`abandoned_first_notified_at` + 168h < now)
+- The cart has been completed (customer finished checkout)
+
+## Cart Metadata — How State Is Tracked
+
+All drip state lives in the cart's `metadata` JSON field. No extra database tables or migrations needed.
+
+| Key | Type | Set When | Description |
+|-----|------|----------|-------------|
+| `abandoned_notify_count` | `number` (0-3) | After each email | How many emails have been sent for this cart |
+| `abandoned_first_notified_at` | ISO timestamp string | After email 1 only | When the first email was sent — anchor for emails 2 and 3 |
+
+### Example metadata progression
 
 ```
-Cron Job (midnight daily)
-    │
-    ├── Query all carts: completed_at = null
-    ├── For each cart, check metadata counters vs DRIP_SCHEDULE
-    ├── Build list of carts due for their next email
-    │
-    └── sendAbandonedCartsWorkflow
-            │
-            ├── sendAbandonedNotificationsStep
-            │     └── Creates notification per cart via SMTP module
-            │         (passes reminder_number to template)
-            │
-            └── markCartsNotifiedStep
-                  └── Increments abandoned_notify_count in cart metadata
-                      Sets abandoned_first_notified_at on first email
+Before any email:     { }
+After email 1:        { "abandoned_notify_count": 1, "abandoned_first_notified_at": "2026-03-01T00:00:00.000Z" }
+After email 2:        { "abandoned_notify_count": 2, "abandoned_first_notified_at": "2026-03-01T00:00:00.000Z" }
+After email 3:        { "abandoned_notify_count": 3, "abandoned_first_notified_at": "2026-03-01T00:00:00.000Z" }
 ```
 
-## Files
+Note: `abandoned_first_notified_at` never changes — it's set once on the first email and used as the anchor for all timing calculations.
 
-### Backend
+## Full Flow — Step By Step
 
-| File | Purpose |
-|------|---------|
-| `src/jobs/abandoned-cart-notification.ts` | Cron job — drip scheduling logic |
-| `src/workflows/send-abandoned-carts.ts` | Workflow — orchestrates send + mark steps |
-| `src/workflows/steps/send-abandoned-notifications.ts` | Step — sends email via notification module |
-| `src/modules/smtp-notification/service.ts` | SMTP provider — routes template + dynamic subject |
-| `src/modules/smtp-notification/templates/abandoned-cart.ts` | HTML template — 3 variants by `reminder_number` |
-| `src/api/store/customers/me/abandoned-cart/route.ts` | Store API — returns customer's abandoned cart |
+### 1. Cron Job Decides Who Gets an Email
 
-### Frontend
+**File:** `src/jobs/abandoned-cart-notification.ts`
 
-| File | Purpose |
-|------|---------|
-| `src/lib/data/cart.ts` | `getAbandonedCart()` — fetches from store API |
-| `src/modules/account/components/overview/index.tsx` | `AbandonedCartSection` — shows cart in account |
-| `src/app/[countryCode]/(main)/account/@dashboard/page.tsx` | Dashboard page — fetches + passes abandoned cart |
-| `src/messages/{es,en}.json` | Translation keys in `account` namespace |
+```
+Every midnight:
+  1. Query ALL carts where completed_at = null (includes items + variants + products)
+  2. For each cart:
+     - Skip if no email, no items
+     - Read abandoned_notify_count from metadata (default: 0)
+     - Read abandoned_first_notified_at from metadata
+     - Skip if count >= 3 (all emails sent)
+     - Skip if first_notified > 7 days ago (expired)
+     - Look up DRIP_SCHEDULE[count] to get timing rule
+     - For count=0: check if updated_at > 24h ago
+     - For count=1: check if first_notified > 72h ago
+     - For count=2: check if first_notified > 144h ago
+     - If timing matches → add to cartsToNotify list with reminder_number = count + 1
+  3. Pass cartsToNotify to sendAbandonedCartsWorkflow
+```
 
-## Store API
+The `DRIP_SCHEDULE` array in the job file controls all timing:
+```ts
+const DRIP_SCHEDULE = [
+  { count: 0, hoursAfterUpdate: 24 },     // Email 1
+  { count: 1, hoursAfterFirst: 72 },       // Email 2
+  { count: 2, hoursAfterFirst: 144 },      // Email 3
+]
+```
 
-### Get Customer's Abandoned Cart
+### 2. Workflow Sends Emails and Updates Metadata
+
+**File:** `src/workflows/send-abandoned-carts.ts`
+
+The workflow has 2 steps that run sequentially:
+
+```
+sendAbandonedCartsWorkflow(carts)
+  │
+  ├── Step 1: sendAbandonedNotificationsStep
+  │     For each cart:
+  │       → Call notificationService.createNotifications()
+  │       → Template: "abandoned-cart"
+  │       → Data includes: cart_id, items, customer_name, reminder_number
+  │       → Collects list of successfully sent cart IDs
+  │
+  └── Step 2: markCartsNotifiedStep
+        For each cart:
+          → Fetch current cart metadata
+          → Set abandoned_notify_count = reminder_number
+          → If reminder_number == 1: set abandoned_first_notified_at = now
+          → Save metadata via cartService.updateCarts()
+```
+
+**Important Medusa v2 detail:** In `createWorkflow`, the `input` parameter is a **proxy object**, not a plain JS object. You cannot call `.map()` or other array methods on it directly. The workflow uses `transform()` from `@medusajs/framework/workflows-sdk` to resolve the proxy into a plain object before mapping:
+
+```ts
+const markInput = transform({ input }, ({ input }) => ({
+  carts: input.carts.map((c) => ({
+    id: c.id,
+    reminder_number: c.reminder_number,
+  })),
+}))
+markCartsNotifiedStep(markInput)
+```
+
+### 3. SMTP Service Picks the Right Subject and Template
+
+**File:** `src/modules/smtp-notification/service.ts`
+
+When the notification module receives a `template: "abandoned-cart"` notification:
+1. Calls `getAbandonedCartSubject(reminder_number)` to get the subject line (1 of 3)
+2. Calls `abandonedCartTemplate(data)` to render the HTML body
+
+**File:** `src/modules/smtp-notification/templates/abandoned-cart.ts`
+
+The template file exports:
+- `SUBJECTS` — maps reminder_number (1, 2, 3) to subject strings
+- `MESSAGES` — maps reminder_number to `{ intro, cta }` strings
+- `getAbandonedCartSubject(n)` — returns subject for email n
+- `abandonedCartTemplate(data)` — renders full HTML email
+
+All 3 emails share the same HTML structure (header, product table, CTA button, footer). Only the intro paragraph, CTA button text, and subject differ.
+
+### 4. Email Links to Recovery Page
+
+Each email contains a recovery link: `{storefront_url}/co/cart/recover/{cart_id}`
+
+**File (frontend):** `src/app/[countryCode]/(main)/cart/recover/[id]/page.tsx`
+
+The recover page does two things:
+1. Calls `setCartId(id)` — sets the `_medusa_cart_id` cookie to the abandoned cart's ID
+2. Redirects to `/{countryCode}/cart`
+
+When the cart page loads, it reads the cookie, fetches the cart from Medusa, and displays all the items. The customer can then proceed to checkout normally.
+
+### 5. Customer Account Dashboard — Abandoned Cart Section
+
+Logged-in customers can also see their abandoned cart directly in their account.
+
+**File (backend):** `src/api/store/customers/me/abandoned-cart/route.ts`
 
 ```
 GET /store/customers/me/abandoned-cart
-Authorization: Bearer <token>
+```
 
-Response: 200
+This endpoint:
+1. Gets the authenticated customer's ID from `req.auth_context.actor_id`
+2. Queries carts where `completed_at = null` AND `customer_id = {id}`
+3. Filters to carts with items, updated within the last 7 days
+4. Returns the most recent one (sorted by `updated_at` desc)
+5. Calculates `expires_at` (7 days after first email, or 7 days after last update if no email sent yet)
+
+Response:
+```json
 {
   "abandoned_cart": {
     "id": "cart_xxx",
@@ -97,29 +196,61 @@ Response: 200
 }
 ```
 
-Returns the most recent incomplete cart for the authenticated customer that was updated within the last 7 days and has items. Returns `{ "abandoned_cart": null }` if none found.
+Returns `{ "abandoned_cart": null }` if no abandoned cart found.
 
-## Recovery Flow
+**File (frontend):** `src/lib/data/cart.ts` — `getAbandonedCart()`
 
-1. Email contains a link: `/co/cart/recover/{cart_id}`
-2. The existing recover route sets the cart cookie and redirects to `/cart`
-3. The customer sees their items and can proceed to checkout
+Server action that calls the endpoint above with auth headers. Returns the abandoned cart or null.
 
-From the account page, the "Recuperar carrito" button links to the same `/cart/recover/{id}` route.
+**File (frontend):** `src/app/[countryCode]/(main)/account/@dashboard/page.tsx`
 
-## Email Templates
+The dashboard page fetches the abandoned cart in parallel with orders:
+```ts
+const [orders, abandonedCart] = await Promise.all([
+  listOrders().catch(() => null),
+  getAbandonedCart().catch(() => null),
+])
+```
 
-All 3 emails share the same HTML structure (product table, CTA button, header/footer). What changes per reminder:
+Passes `abandonedCart` as a prop to the Overview component.
 
-- **Subject line** — escalating urgency
-- **Intro paragraph** — different messaging
-- **CTA button text** — "Completar mi compra" / "Volver a mi carrito" / "Completar mi compra ahora"
+**File (frontend):** `src/modules/account/components/overview/index.tsx`
 
-The `reminder_number` (1, 2, or 3) is passed through the workflow into the template to select the variant.
+The `AbandonedCartSection` component renders when `abandonedCart` is not null:
+- Shows a heading "Carrito Abandonado" with "Expires in X days" countdown
+- Amber-colored card with product thumbnails (up to 4), titles, quantities
+- "Recuperar carrito" button linking to `/cart/recover/{id}`
+
+The section is completely hidden when there's no abandoned cart.
+
+## Files Summary
+
+### Backend (`medusapando-back/`)
+
+| File | What It Does |
+|------|-------------|
+| `src/jobs/abandoned-cart-notification.ts` | Cron job (midnight). Queries incomplete carts, applies drip schedule, sends emails |
+| `src/jobs/cleanup-abandoned-carts.ts` | Cron job (2am). Soft-deletes incomplete carts older than 30 days |
+| `src/workflows/send-abandoned-carts.ts` | Medusa workflow with 2 steps. Uses `transform()` to resolve workflow proxy before passing data between steps |
+| `src/workflows/steps/send-abandoned-notifications.ts` | Workflow step. Loops through carts, calls `notificationService.createNotifications()` for each with `reminder_number` |
+| `src/modules/smtp-notification/service.ts` | SMTP notification provider. Routes `"abandoned-cart"` template, picks dynamic subject via `getAbandonedCartSubject()` |
+| `src/modules/smtp-notification/templates/abandoned-cart.ts` | HTML email template. 3 subject/message/CTA variants keyed by `reminder_number`. Exports `getAbandonedCartSubject()` and `abandonedCartTemplate()` |
+| `src/api/store/customers/me/abandoned-cart/route.ts` | `GET` endpoint. Returns most recent abandoned cart (within 7 days) for the authenticated customer |
+
+### Frontend (`medusapando-front/`)
+
+| File | What It Does |
+|------|-------------|
+| `src/lib/data/cart.ts` | `getAbandonedCart()` server action + `AbandonedCart` / `AbandonedCartItem` types |
+| `src/app/[countryCode]/(main)/account/@dashboard/page.tsx` | Fetches abandoned cart in parallel with orders, passes to Overview |
+| `src/modules/account/components/overview/index.tsx` | `AbandonedCartSection` client component — product thumbnails, expiry countdown, recover button |
+| `src/app/[countryCode]/(main)/cart/recover/[id]/page.tsx` | Recovery page — sets cart cookie and redirects to `/cart` (pre-existing, not modified) |
+| `src/messages/es.json` | Spanish translation keys in `account` namespace |
+| `src/messages/en.json` | English translation keys in `account` namespace |
 
 ## Translation Keys
 
-Added to the `account` namespace in `src/messages/{es,en}.json`:
+In the `account` namespace of `src/messages/{es,en}.json`:
 
 | Key | ES | EN |
 |-----|----|----|
@@ -128,12 +259,98 @@ Added to the `account` namespace in `src/messages/{es,en}.json`:
 | `recoverCart` | Recuperar carrito | Recover cart |
 | `expiresIn` | Expira en {days} dias | Expires in {days} days |
 
+## Cart Cleanup — Soft-Deleting Old Carts
+
+### Why Cleanup Is Needed
+
+Medusa v2 has **no built-in cart cleanup**. Every visitor who adds items to a cart creates a `cart` record with associated line items, addresses, shipping methods, tax lines, and adjustments. Without cleanup, these records grow without bound.
+
+### How It Works
+
+A second cron job runs **every day at 2am** (`0 2 * * *`) — separate from the email drip job.
+
+**File:** `src/jobs/cleanup-abandoned-carts.ts`
+
+```
+Every day at 2am:
+  1. Query all carts where completed_at = null
+  2. Filter to carts not updated in 30+ days (CLEANUP_AFTER_DAYS)
+  3. For each stale cart:
+     a. Dismiss cross-module link records (payment collections, promotions)
+     b. Soft-delete the cart via cartService.softDeleteCarts()
+  4. Log how many carts were cleaned up
+```
+
+### Why Soft Delete (not Hard Delete)
+
+- **Soft delete** sets `deleted_at` on the cart row. The record stays in the DB but is excluded from all queries (Medusa indexes include `WHERE deleted_at IS NULL`).
+- It's **reversible** with `cartService.restoreCarts(ids)` if something goes wrong.
+- Hard delete (`deleteCarts`) is permanent and irreversible.
+
+### What Gets Cascade-Deleted
+
+When `softDeleteCarts()` is called:
+
+**Automatically handled (cascade):**
+- `cart_line_item` — all items in the cart
+- `cart_line_item_adjustment` — discounts on items
+- `cart_line_item_tax_line` — tax calculations on items
+- `cart_shipping_method` — shipping selections
+- `cart_shipping_method_adjustment` — shipping discounts
+- `cart_shipping_method_tax_line` — shipping tax
+- `cart_address` — shipping and billing addresses
+
+**NOT automatically handled (cross-module links):**
+- `cart_payment_collection` — link to payment sessions
+- `cart_promotion` — link to applied promotions
+
+The cleanup job handles these by calling `link.dismiss()` before soft-deleting.
+
+### Safety Rules
+
+1. **Never delete completed carts** — they are linked to orders via the `order_cart` link table. Deleting them would break order history. The job only queries `completed_at: null`.
+2. **30-day buffer** — the drip campaign ends at 7 days, the account dashboard shows carts within 7 days. 30 days gives plenty of buffer for late recoveries.
+3. **Link cleanup first** — cross-module link records are dismissed before soft-deleting, preventing orphan records.
+
+### Timeline
+
+```
+Day 0:  Customer abandons cart
+Day 1:  Email 1 sent (24h after cart update)
+Day 3:  Email 2 sent (72h after email 1)
+Day 6:  Email 3 sent (144h after email 1)
+Day 7:  Drip campaign ends, cart disappears from account dashboard
+Day 30: Cart is soft-deleted by cleanup job
+```
+
+## Gotchas and Important Notes
+
+1. **Workflow proxy objects:** In Medusa v2 `createWorkflow`, the `input` parameter is a proxy — not a real JS object. You MUST use `transform()` to resolve it before calling `.map()`, `.filter()`, or accessing nested properties. Calling `input.carts.map(...)` directly will crash the backend on startup with `input.carts.map is not a function`.
+
+2. **Email timing is checked once per day:** The cron runs at midnight. A cart abandoned at 11pm will get email 1 at midnight the next day (~25h later), not exactly at 24h. This is intentional — batching reduces server load.
+
+3. **Guest carts vs logged-in carts:** The email drip works for ALL carts with an email (including guests). The account dashboard section only works for logged-in customers (requires `customer_id` on the cart).
+
+4. **Cart gets completed mid-drip:** If a customer completes their purchase after email 1, the cart's `completed_at` gets set. The cron job filters for `completed_at: null`, so emails 2 and 3 will never be sent. No extra cleanup needed.
+
+5. **Customer creates a new cart:** If a customer abandons cart A, then comes back and creates cart B, both carts exist in the database. The email drip continues for cart A (it still has `completed_at: null`). The account dashboard shows the most recent one sorted by `updated_at`.
+
+6. **Recovery link country code:** The email template currently hardcodes `/co/` in the recovery URL. If you add more countries, update the template to use the cart's country code dynamically.
+
 ## Extending
 
-**Add a 4th email:** Add an entry to `DRIP_SCHEDULE` in `abandoned-cart-notification.ts`, a new subject/message in `abandoned-cart.ts` template, and update `MAX_AGE_HOURS` if needed.
+**Add a 4th email:** Add an entry to `DRIP_SCHEDULE` in `abandoned-cart-notification.ts` (e.g., `{ count: 3, hoursAfterFirst: 160 }`), add subject/message for key `4` in the template's `SUBJECTS` and `MESSAGES` maps, and update `MAX_AGE_HOURS` if needed.
 
 **Change timing:** Edit `hoursAfterUpdate` / `hoursAfterFirst` values in `DRIP_SCHEDULE`.
 
-**Add discount to last email:** Modify the template for `reminder_number: 3` in `abandoned-cart.ts` to include a promo code. You'd need to generate/pass the code through the workflow data.
+**Add discount to last email:** Modify the `MESSAGES[3]` in `abandoned-cart.ts` to include a promo code in the intro text. If you need a dynamic code, generate it in the cron job and pass it through the workflow data.
 
-**Change cron schedule:** Edit `config.schedule` in `abandoned-cart-notification.ts` (standard cron syntax).
+**Change cron schedule:** Edit `config.schedule` in `abandoned-cart-notification.ts`. Value is standard cron syntax (e.g., `"0 */6 * * *"` for every 6 hours).
+
+**Internationalize email templates:** Currently emails are Spanish-only. To support multiple languages, pass the customer's locale through the workflow data and add locale-based `SUBJECTS`/`MESSAGES` maps in the template file.
+
+**Change cleanup threshold:** Edit `CLEANUP_AFTER_DAYS` in `cleanup-abandoned-carts.ts` (default: 30 days).
+
+**Hard-delete instead of soft-delete:** Replace `cartService.softDeleteCarts(ids)` with `cartService.deleteCarts(ids)` in the cleanup job. This is permanent and irreversible — only do this if disk space is a concern.
+
+**Restore a soft-deleted cart:** Call `cartService.restoreCarts(["cart_xxx"])` from a script or admin endpoint. The cart and its cascaded children will be restored.

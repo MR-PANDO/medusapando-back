@@ -111,6 +111,14 @@ Email notification sent to Payment Manager
 - The **payment provider** satisfies Medusa's payment interface (initiate, authorize, capture, refund, etc.)
 - The **custom module** provides the `wompi_payment` table for tracking Wompi-specific data that doesn't fit in Medusa's payment session model (payment link IDs, checkout URLs, webhook audit log)
 
+### Medusa v2 Architecture Decision
+
+Custom business logic like `createPaymentLink()` lives in the **Wompi Module Service**, NOT in the Payment Provider. This is the Medusa v2 way:
+
+- **Payment Provider** (`AbstractPaymentProvider`) → only implements the standard Medusa payment lifecycle
+- **Module Service** (`MedusaService`) → handles Wompi-specific business logic (API calls, payment link creation, record tracking)
+- Payment providers live inside the Payment Module's **internal container** and cannot be resolved directly from `req.scope`. Custom logic must go through your own module service, resolved via `req.scope.resolve(WOMPI_MODULE)`
+
 ---
 
 ## File Structure
@@ -124,7 +132,8 @@ src/
 │       ├── models/
 │       │   └── wompi-payment.ts              # WompiPayment entity definition
 │       ├── migrations/
-│       │   └── Migration20260307120000.ts    # Database migration
+│       │   ├── Migration20260307120000.ts    # Initial table creation
+│       │   └── Migration20260307180000.ts    # Add transaction detail columns
 │       └── types/
 │           └── index.ts                      # TypeScript types & status constants
 │
@@ -149,9 +158,11 @@ src/
 │               └── route.ts                  # GET /admin/wompi/settings
 │
 ├── admin/
-│   └── routes/
-│       └── wompi/
-│           └── page.tsx                      # Admin UI dashboard
+│   ├── routes/
+│   │   └── wompi/
+│   │       └── page.tsx                      # Admin UI dashboard
+│   └── widgets/
+│       └── order-wompi-widget.tsx             # Order detail sidebar widget
 │
 └── utils/
     ├── wompi-signature.ts                    # SHA-256 signature validation
@@ -267,7 +278,11 @@ WOMPI_PAYMENT_MANAGER_EMAIL=payments@yourstore.com
 | `amount_in_cents` | INTEGER | Amount in COP centavos |
 | `currency` | TEXT | Default "COP" |
 | `payment_method_type` | TEXT NULL | e.g. "CARD", "PSE", "NEQUI" |
+| `payment_method_detail` | TEXT NULL | Formatted: "Visa •••• 4242" (from webhook) |
 | `customer_email` | TEXT NULL | Customer email |
+| `customer_name` | TEXT NULL | Customer full name (from webhook) |
+| `customer_phone` | TEXT NULL | Customer phone number (from webhook) |
+| `wompi_reference` | TEXT NULL | Wompi internal reference string |
 | `link_generated_at` | TIMESTAMPTZ NULL | When link was created |
 | `finalized_at` | TIMESTAMPTZ NULL | When payment reached final status |
 | `last_webhook_payload` | JSONB NULL | Full webhook body for audit |
@@ -339,12 +354,13 @@ Once registered, the provider ID is: `pp_wompi_wompi`
 | `retrieveWompiPayment(id)` | Get single payment by ID |
 | `createWompiPayments(data)` | Create payment record |
 | `updateWompiPayments(data)` | Update payment record |
+| `createPaymentLink(params)` | Calls Wompi API to create a payment link (uses `WOMPI_PRIVATE_KEY` env var) |
 | `getPendingPayments()` | List payments in link_generating/link_ready/pending status |
 | `getAllPayments(filters?)` | List all payments with optional status filter |
 | `findByPaymentLinkId(id)` | Find payment by Wompi payment link ID (webhook lookup) |
 | `findByOrderId(id)` | Find payment by Medusa order ID |
 | `createPaymentRecord(data)` | Create a new payment record with link details |
-| `updateFromWebhook(...)` | Update payment from webhook data (idempotent) |
+| `updateFromWebhook(...)` | Update payment from webhook data (idempotent) — saves transaction details, payment method, customer info |
 | `getSettings()` | Get payment manager email and notification config |
 
 ---
@@ -498,19 +514,40 @@ checksum = SHA256(
 
 ## Admin UI
 
+### Wompi Dashboard Page
+
 **File:** `src/admin/routes/wompi/page.tsx`
 
-### Features
+Accessible at `/a/wompi` in the Medusa Admin dashboard. Appears in the sidebar with a credit card icon.
 
-- **Payment Manager Settings** — Configure notification email address
+**Features:**
+- **Notification email display** — Shows the configured `WOMPI_PAYMENT_MANAGER_EMAIL` (read-only, set via env var)
 - **Filter buttons** — Pending, Approved, Declined, Voided, Error, All
 - **Payments table** — Reference, customer, amount, method, status, dates, checkout link
 - **Status badges** — Color-coded (green/blue/orange/red/grey)
 - **Refresh button** — Manual data refresh
 
-### Route
+### Order Wompi Widget
 
-Accessible at `/a/wompi` in the Medusa Admin dashboard. Appears in the sidebar with a credit card icon.
+**File:** `src/admin/widgets/order-wompi-widget.tsx`
+
+Appears on the order detail page sidebar (`order.details.side.after` zone).
+
+**Displays (similar to Wompi dashboard):**
+- **Monto** — Payment amount in COP
+- **Transaccion #** — Wompi transaction ID (e.g., `13338-1772910881-40541`)
+- **Referencia** — Wompi internal reference
+- **Medio de pago** — Card brand + last 4 digits (e.g., `Visa •••• 4242`), or PSE/Nequi details
+- **Cliente** — Customer full name
+- **Email** — Customer email
+- **Telefono** — Customer phone number
+- **Link generado** — Date/time when link was created
+- **Finalizado** — Date/time when payment reached final status
+- **Status badge** — Color-coded with Spanish labels (Aprobada, Rechazada, Pendiente, etc.)
+- **Payment link** — Copy button + "Abrir link de pago" when link is active
+- **Generate button** — "Generar link de pago" / "Generar nuevo link de pago"
+
+**Transaction details** are extracted from the webhook payload (`last_webhook_payload.data.transaction`) and stored in dedicated columns: `payment_method_detail`, `customer_name`, `customer_phone`, `wompi_reference`.
 
 ---
 
@@ -542,16 +579,69 @@ link_generating
     +---> wompi_link_error (Wompi API failure)
     |
     v
-wompi_link_ready
-    |
-    v (customer pays via Wompi)
-wompi_pending
-    |
-    +---> payment_approved  (APPROVED)
-    +---> payment_declined  (DECLINED)
-    +---> payment_voided    (VOIDED)
-    +---> payment_error     (ERROR)
+wompi_link_ready ◄─────────────────────────────────┐
+    |                                                │
+    v (customer pays via Wompi)                      │
+wompi_pending                                        │
+    |                                                │
+    +---> payment_approved  (APPROVED) ── DONE ✓     │
+    +---> payment_declined  (DECLINED) ── can retry ─┘
+    +---> payment_voided    (VOIDED)   ── can retry ─┘
+    +---> payment_error     (ERROR)    ── can retry ─┘
 ```
+
+### Webhook Idempotency
+
+The webhook handler is **idempotent**. Wompi may send the same event multiple times. Before updating, the handler checks:
+
+```
+existing.wompi_transaction_id === incoming.transactionId
+  AND existing.wompi_status === mapped(incoming.status)
+```
+
+If both match, the webhook is acknowledged (200) without re-processing. This prevents:
+- Duplicate email notifications
+- Unnecessary database writes
+- Race conditions from concurrent webhook deliveries
+
+### Multiple Status Changes per Transaction
+
+Wompi sends a webhook for each status transition. A typical approved payment goes through:
+
+1. **`PENDING`** webhook → record updated to `pending`, no email sent (non-final)
+2. **`APPROVED`** webhook → record updated to `approved`, `finalized_at` set, manager email sent
+
+Each webhook **overwrites** the previous status, transaction details, and `last_webhook_payload`. Only final statuses (`APPROVED`, `DECLINED`, `VOIDED`, `ERROR`) trigger the manager email notification.
+
+### Payment Link Re-generation (Retry on Failure)
+
+When a payment fails, the admin can generate a **new** payment link for the same order.
+
+**Widget button logic:**
+
+| Current Status | Button Visible? | Action |
+|---|---|---|
+| No payment record | Yes — "Generar link de pago" | Creates first link |
+| `link_ready` | No (link is active) | — |
+| `pending` | No (customer is paying) | — |
+| `approved` | No (payment complete) | — |
+| `declined` | Yes — "Generar nuevo link de pago" | Creates new link |
+| `voided` | Yes — "Generar nuevo link de pago" | Creates new link |
+| `error` | Yes — "Generar nuevo link de pago" | Creates new link |
+
+**Route duplicate check:**
+
+The `POST /admin/wompi/generate-link` endpoint only blocks (409) if the **most recent** payment record for the order is `link_ready` or `pending`. For `declined`/`voided`/`error`, it allows creating a new link.
+
+**What happens on retry:**
+
+1. A **new `wompi_payment` record** is created (old one stays for audit)
+2. A **new Wompi payment link** is generated with a new URL
+3. The customer receives a **new email** with the new link
+4. Order metadata is updated to `wompi_link_ready` with the new link
+5. `findByOrderId` returns the **most recent** record (`ORDER BY created_at DESC`)
+
+**Old records are preserved** — the full history of all payment attempts for an order is kept in the database. Webhooks for old payment links still update the correct record (matched by `payment_link_id`, not `order_id`).
 
 ---
 

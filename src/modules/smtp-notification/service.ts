@@ -44,6 +44,15 @@ type SmtpOptions = {
   storefront_url: string
 }
 
+type SmtpConfig = {
+  host: string
+  port: number
+  secure: boolean
+  user: string
+  pass: string
+  from: string
+}
+
 type SendNotificationInput = {
   to: string
   channel: string
@@ -55,19 +64,67 @@ type ProviderSendNotificationResultsDTO = {
   id: string
 }
 
+// Cache DB settings for 60 seconds to avoid hitting DB on every email
+let cachedDbSettings: SmtpConfig | null | undefined = undefined
+let cacheTimestamp = 0
+const CACHE_TTL = 60_000
+
+async function getDbSmtpSettings(): Promise<SmtpConfig | null> {
+  const now = Date.now()
+  if (cachedDbSettings !== undefined && now - cacheTimestamp < CACHE_TTL) {
+    return cachedDbSettings
+  }
+
+  try {
+    const { Client } = await import("pg")
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL || "",
+    })
+    await client.connect()
+    const result = await client.query(
+      `SELECT host, port, secure, "user", pass, "from"
+       FROM smtp_settings
+       WHERE deleted_at IS NULL
+       ORDER BY created_at DESC
+       LIMIT 1`
+    )
+    await client.end()
+
+    if (result.rows.length > 0) {
+      const row = result.rows[0]
+      cachedDbSettings = {
+        host: row.host,
+        port: row.port,
+        secure: row.secure,
+        user: row.user,
+        pass: row.pass,
+        from: row.from,
+      }
+    } else {
+      cachedDbSettings = null
+    }
+    cacheTimestamp = now
+    return cachedDbSettings
+  } catch {
+    // DB not available — fall back to env vars
+    return null
+  }
+}
+
 class SmtpNotificationService extends AbstractNotificationProviderService {
   static identifier = "notification-smtp"
 
-  private transporter: Transporter
-  private from: string
+  private defaultTransporter: Transporter
+  private defaultFrom: string
   private storefrontUrl: string
+
   constructor(container: Record<string, unknown>, options: SmtpOptions) {
     super()
 
-    this.from = options.from
+    this.defaultFrom = options.from
     this.storefrontUrl = options.storefront_url
 
-    this.transporter = nodemailer.createTransport({
+    this.defaultTransporter = nodemailer.createTransport({
       host: options.host,
       port: options.port,
       secure: options.secure,
@@ -76,6 +133,23 @@ class SmtpNotificationService extends AbstractNotificationProviderService {
         pass: options.auth.pass,
       },
     })
+  }
+
+  private async getTransporter(): Promise<{ transporter: Transporter; from: string }> {
+    const dbSettings = await getDbSmtpSettings()
+    if (dbSettings) {
+      const transporter = nodemailer.createTransport({
+        host: dbSettings.host,
+        port: dbSettings.port,
+        secure: dbSettings.secure,
+        auth: {
+          user: dbSettings.user,
+          pass: dbSettings.pass,
+        },
+      })
+      return { transporter, from: dbSettings.from }
+    }
+    return { transporter: this.defaultTransporter, from: this.defaultFrom }
   }
 
   async send(
@@ -126,8 +200,10 @@ class SmtpNotificationService extends AbstractNotificationProviderService {
         )
     }
 
-    const info = await this.transporter.sendMail({
-      from: this.from,
+    const { transporter, from } = await this.getTransporter()
+
+    const info = await transporter.sendMail({
+      from,
       to,
       subject,
       html,

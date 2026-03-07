@@ -27,12 +27,21 @@ export async function notifyWithAudit(
     // emailAudit module not available — send without audit
   }
 
+  // Get "from" from DB settings if available
+  let smtpFrom = process.env.SMTP_FROM || ""
+  if (auditService) {
+    try {
+      const dbSettings = await auditService.getSmtpSettings()
+      if (dbSettings?.from) smtpFrom = dbSettings.from
+    } catch {}
+  }
+
   let auditId: string | null = null
   if (auditService) {
     try {
       const record = await auditService.logEmail({
         to: params.to,
-        from: process.env.SMTP_FROM || "",
+        from: smtpFrom,
         subject: params.subject || params.template,
         email_type: params.template,
         status: "queued",

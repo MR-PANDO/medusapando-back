@@ -1,6 +1,6 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { Container, Heading, Text, Badge, Button } from "@medusajs/ui"
-import { Mail } from "lucide-react"
+import { Container, Heading, Text, Badge, Button, Input, Label } from "@medusajs/ui"
+import { Mail, Settings, Pencil, Check, X } from "lucide-react"
 import { useEffect, useState } from "react"
 
 type EmailAuditRecord = {
@@ -14,6 +14,15 @@ type EmailAuditRecord = {
   metadata: Record<string, any> | null
   sent_at: string | null
   created_at: string
+}
+
+type SmtpSettingsData = {
+  host: string
+  port: number
+  secure: boolean
+  user: string
+  pass: string
+  from: string
 }
 
 const STATUS_COLORS: Record<string, "green" | "red" | "orange" | "grey"> = {
@@ -32,7 +41,7 @@ const TYPE_LABELS: Record<string, string> = {
   "payment-link": "Link de pago",
   "payment-status": "Estado de pago",
   "abandoned-cart": "Carrito abandonado",
-  "order-confirmation": "Confirmacion de pedido",
+  "order-placed": "Confirmacion de pedido",
   "order-shipped": "Pedido enviado",
   "order-canceled": "Pedido cancelado",
   "order-refund": "Reembolso",
@@ -47,6 +56,241 @@ function formatDate(dateStr: string | null): string {
     timeZone: "America/Bogota",
   })
 }
+
+/* ─── SMTP Settings Panel ─── */
+
+function SmtpSettingsPanel() {
+  const [settings, setSettings] = useState<SmtpSettingsData>({
+    host: "",
+    port: 465,
+    secure: true,
+    user: "",
+    pass: "",
+    from: "",
+  })
+  const [editing, setEditing] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
+
+  const fetchSettings = async () => {
+    try {
+      const res = await fetch("/admin/emails/settings", {
+        credentials: "include",
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.settings) {
+          setSettings(data.settings)
+          setLoaded(true)
+        }
+      }
+    } catch {}
+  }
+
+  useEffect(() => {
+    fetchSettings()
+  }, [])
+
+  const handleSave = async () => {
+    setError("")
+    setSuccess("")
+    if (!settings.host || !settings.user || !settings.pass || !settings.from) {
+      setError("Todos los campos son obligatorios")
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await fetch("/admin/emails/settings", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+      })
+      if (res.ok) {
+        setEditing(false)
+        setSuccess("Configuracion guardada")
+        setTimeout(() => setSuccess(""), 3000)
+        fetchSettings()
+      } else {
+        const data = await res.json()
+        setError(data.error || "Error al guardar")
+      }
+    } catch {
+      setError("Error de conexion")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCancel = () => {
+    setEditing(false)
+    setError("")
+    fetchSettings()
+  }
+
+  return (
+    <Container className="divide-y p-0">
+      <div className="flex items-center justify-between px-6 py-4">
+        <div className="flex items-center gap-x-3">
+          <Settings className="text-ui-fg-subtle" size={20} />
+          <div>
+            <Heading level="h2" className="text-base">
+              Configuracion SMTP
+            </Heading>
+            <Text className="text-ui-fg-subtle text-sm">
+              Proveedor de correo electronico
+            </Text>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          {editing ? (
+            <>
+              <Button
+                size="small"
+                variant="secondary"
+                onClick={handleCancel}
+                disabled={saving}
+              >
+                <X size={14} />
+                Cancelar
+              </Button>
+              <Button
+                size="small"
+                variant="primary"
+                onClick={handleSave}
+                disabled={saving}
+              >
+                <Check size={14} />
+                {saving ? "Guardando..." : "Guardar"}
+              </Button>
+            </>
+          ) : (
+            <Button
+              size="small"
+              variant="secondary"
+              onClick={() => {
+                setEditing(true)
+                // Clear masked password when entering edit mode
+                if (loaded) {
+                  setSettings((s) => ({ ...s, pass: "" }))
+                }
+              }}
+            >
+              <Pencil size={14} />
+              Editar
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <div className="px-6 py-4">
+        {error && (
+          <div className="mb-4 p-3 bg-ui-bg-subtle-hover rounded text-ui-fg-error text-sm">
+            {error}
+          </div>
+        )}
+        {success && (
+          <div className="mb-4 p-3 bg-ui-bg-subtle-hover rounded text-green-700 text-sm">
+            {success}
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="smtp-host">Host</Label>
+            <Input
+              id="smtp-host"
+              placeholder="smtp.gmail.com"
+              value={settings.host}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, host: e.target.value }))
+              }
+              disabled={!editing}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="smtp-port">Puerto</Label>
+              <Input
+                id="smtp-port"
+                type="number"
+                placeholder="465"
+                value={String(settings.port)}
+                onChange={(e) =>
+                  setSettings((s) => ({
+                    ...s,
+                    port: Number(e.target.value) || 465,
+                  }))
+                }
+                disabled={!editing}
+              />
+            </div>
+            <div className="flex items-end gap-2 pb-1">
+              <input
+                id="smtp-secure"
+                type="checkbox"
+                checked={settings.secure}
+                onChange={(e) =>
+                  setSettings((s) => ({ ...s, secure: e.target.checked }))
+                }
+                disabled={!editing}
+                className="h-4 w-4"
+              />
+              <Label htmlFor="smtp-secure">SSL/TLS</Label>
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="smtp-user">Usuario</Label>
+            <Input
+              id="smtp-user"
+              placeholder="correo@dominio.com"
+              value={settings.user}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, user: e.target.value }))
+              }
+              disabled={!editing}
+            />
+          </div>
+          <div>
+            <Label htmlFor="smtp-pass">Contrasena</Label>
+            <Input
+              id="smtp-pass"
+              type="password"
+              placeholder={editing ? "Ingrese la contrasena" : "********"}
+              value={settings.pass}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, pass: e.target.value }))
+              }
+              disabled={!editing}
+            />
+          </div>
+          <div className="col-span-2">
+            <Label htmlFor="smtp-from">
+              Remitente (From)
+            </Label>
+            <Input
+              id="smtp-from"
+              placeholder="Tienda <correo@dominio.com>"
+              value={settings.from}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, from: e.target.value }))
+              }
+              disabled={!editing}
+            />
+          </div>
+        </div>
+        {!loaded && !editing && (
+          <Text className="text-ui-fg-muted text-sm mt-3">
+            No hay configuracion guardada. Se usan las variables de entorno.
+          </Text>
+        )}
+      </div>
+    </Container>
+  )
+}
+
+/* ─── Emails Page ─── */
 
 const EmailsPage = () => {
   const [emails, setEmails] = useState<EmailAuditRecord[]>([])
@@ -92,6 +336,10 @@ const EmailsPage = () => {
 
   return (
     <div className="flex flex-col gap-y-6">
+      {/* SMTP Settings */}
+      <SmtpSettingsPanel />
+
+      {/* Email History Header */}
       <Container className="divide-y p-0">
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-x-3">
@@ -129,14 +377,14 @@ const EmailsPage = () => {
             </Button>
           ))}
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-wrap">
           <Text className="text-sm text-ui-fg-subtle">Tipo:</Text>
           {[
             { key: "", label: "Todos" },
             { key: "payment-link", label: "Link de pago" },
             { key: "payment-status", label: "Estado de pago" },
             { key: "abandoned-cart", label: "Carrito abandonado" },
-            { key: "order-confirmation", label: "Confirmacion pedido" },
+            { key: "order-placed", label: "Confirmacion pedido" },
             { key: "order-shipped", label: "Pedido enviado" },
             { key: "order-canceled", label: "Pedido cancelado" },
             { key: "order-refund", label: "Reembolso" },

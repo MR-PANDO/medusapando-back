@@ -1,9 +1,11 @@
 import { MedusaService } from "@medusajs/framework/utils"
 import { EmailAudit } from "./models/email-audit"
+import { SmtpSettings } from "./models/smtp-settings"
 import type { LogEmailInput } from "./types"
 
 class EmailAuditModuleService extends MedusaService({
   EmailAudit,
+  SmtpSettings,
 }) {
   async logEmail(data: LogEmailInput) {
     return this.createEmailAudits({
@@ -51,6 +53,48 @@ class EmailAuditModuleService extends MedusaService({
       take: filters.limit ?? 50,
       skip: filters.offset ?? 0,
     })
+  }
+
+  async getSmtpSettings(): Promise<{
+    host: string
+    port: number
+    secure: boolean
+    user: string
+    pass: string
+    from: string
+  } | null> {
+    const [records] = await this.listAndCountSmtpSettings(
+      {},
+      { take: 1, order: { created_at: "DESC" } }
+    )
+    if (records.length === 0) return null
+    const r = records[0] as any
+    return {
+      host: r.host,
+      port: r.port,
+      secure: r.secure,
+      user: r.user,
+      pass: r.pass,
+      from: r.from,
+    }
+  }
+
+  async upsertSmtpSettings(data: {
+    host: string
+    port: number
+    secure: boolean
+    user: string
+    pass: string
+    from: string
+  }) {
+    const [existing] = await this.listAndCountSmtpSettings({}, { take: 1 })
+    if (existing.length > 0) {
+      return this.updateSmtpSettings({
+        id: (existing[0] as any).id,
+        ...data,
+      })
+    }
+    return this.createSmtpSettings(data)
   }
 }
 

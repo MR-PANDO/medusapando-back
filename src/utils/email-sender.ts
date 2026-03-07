@@ -10,16 +10,54 @@ type SendEmailParams = {
   metadata?: Record<string, any>
 }
 
-function createTransporter() {
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT) || 587,
-    secure: process.env.SMTP_SECURE === "true",
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  })
+async function createTransporter(): Promise<{
+  transporter: nodemailer.Transporter
+  from: string
+}> {
+  // Try DB settings first
+  try {
+    const { Client } = await import("pg")
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL || "",
+    })
+    await client.connect()
+    const result = await client.query(
+      `SELECT host, port, secure, "user", pass, "from"
+       FROM smtp_settings
+       WHERE deleted_at IS NULL
+       ORDER BY created_at DESC
+       LIMIT 1`
+    )
+    await client.end()
+
+    if (result.rows.length > 0) {
+      const row = result.rows[0]
+      return {
+        transporter: nodemailer.createTransport({
+          host: row.host,
+          port: row.port,
+          secure: row.secure,
+          auth: { user: row.user, pass: row.pass },
+        }),
+        from: row.from,
+      }
+    }
+  } catch {
+    // DB not available — fall back to env vars
+  }
+
+  return {
+    transporter: nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT) || 587,
+      secure: process.env.SMTP_SECURE === "true",
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    }),
+    from: process.env.SMTP_FROM ?? "",
+  }
 }
 
 /**
@@ -30,7 +68,7 @@ export async function sendEmail(
   params: SendEmailParams,
   auditService?: EmailAuditModuleService
 ) {
-  const from = process.env.SMTP_FROM ?? ""
+  const { transporter, from } = await createTransporter()
 
   // Log as queued (best-effort — don't block send if logging fails)
   let auditId: string | null = null
@@ -52,7 +90,6 @@ export async function sendEmail(
 
   // Send
   try {
-    const transporter = createTransporter()
     await transporter.sendMail({
       from,
       to: params.to,

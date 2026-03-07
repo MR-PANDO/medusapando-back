@@ -114,9 +114,10 @@ class WompiModuleService extends MedusaService({
   }
 
   async findByOrderId(orderId: string) {
-    const records = await this.listWompiPayments({
-      order_id: orderId,
-    })
+    const records = await this.listWompiPayments(
+      { order_id: orderId },
+      { order: { created_at: "DESC" } }
+    )
     return records.length ? records[0] : null
   }
 

@@ -77,10 +77,14 @@ class WompiModuleService extends MedusaService({
     }
 
     const data = await response.json()
+    const linkId = data.data.id
+
+    // Wompi doesn't return a permalink — construct checkout URL from link ID
+    const checkoutUrl = `https://checkout.wompi.co/l/${linkId}`
 
     return {
-      paymentLinkId: data.data.id,
-      checkoutUrl: data.data.permalink,
+      paymentLinkId: linkId,
+      checkoutUrl,
     }
   }
 

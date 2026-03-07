@@ -156,10 +156,16 @@ const OrderWompiWidget = ({ data }: DetailWidgetProps<any>) => {
     !payment ||
     ["error", "declined", "voided"].includes(payment.wompi_status)
 
+  // Get checkout URL from payment record or order metadata
+  const checkoutUrl =
+    payment?.wompi_checkout_url ||
+    data?.metadata?.wompi_checkout_url ||
+    null
+
   const showLink =
     payment &&
     ["link_ready", "pending"].includes(payment.wompi_status) &&
-    payment.wompi_checkout_url
+    checkoutUrl
 
   // Extract extra details from webhook payload if available
   const webhookTx = payment?.last_webhook_payload?.data?.transaction
@@ -270,15 +276,13 @@ const OrderWompiWidget = ({ data }: DetailWidgetProps<any>) => {
                 </Text>
                 <div className="flex items-center gap-x-2">
                   <code className="text-xs bg-ui-bg-subtle px-2 py-1 rounded flex-1 truncate">
-                    {payment.wompi_checkout_url}
+                    {checkoutUrl}
                   </code>
                   <Button
                     size="small"
                     variant="secondary"
                     onClick={() => {
-                      navigator.clipboard.writeText(
-                        payment.wompi_checkout_url!
-                      )
+                      navigator.clipboard.writeText(checkoutUrl!)
                       toast.success("Link copiado")
                     }}
                   >
@@ -286,7 +290,7 @@ const OrderWompiWidget = ({ data }: DetailWidgetProps<any>) => {
                   </Button>
                 </div>
                 <a
-                  href={payment.wompi_checkout_url!}
+                  href={checkoutUrl!}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-ui-fg-interactive hover:underline text-xs"

@@ -1,6 +1,6 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { Container, Heading, Text, Badge, Button } from "@medusajs/ui"
-import { CreditCard } from "lucide-react"
+import { CreditCard, Copy, Check } from "lucide-react"
 import { useEffect, useState } from "react"
 
 type WompiPaymentRecord = {
@@ -40,6 +40,28 @@ function formatDate(dateStr: string | null): string {
   return new Date(dateStr).toLocaleString("es-CO", {
     timeZone: "America/Bogota",
   })
+}
+
+function CopyButton({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false)
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {}
+  }
+  return (
+    <button
+      onClick={handleCopy}
+      className="inline-flex items-center gap-1 text-ui-fg-interactive hover:text-ui-fg-interactive-hover text-xs"
+      title="Copiar link"
+    >
+      {copied ? <Check size={12} /> : <Copy size={12} />}
+      {copied ? "Copiado" : "Copiar"}
+    </button>
+  )
 }
 
 const WompiPage = () => {
@@ -202,14 +224,17 @@ const WompiPage = () => {
                     </td>
                     <td className="px-4 py-3">
                       {p.wompi_checkout_url ? (
-                        <a
-                          href={p.wompi_checkout_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-ui-fg-interactive hover:underline text-xs"
-                        >
-                          Open
-                        </a>
+                        <div className="flex items-center gap-2">
+                          <CopyButton url={p.wompi_checkout_url} />
+                          <a
+                            href={p.wompi_checkout_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-ui-fg-interactive hover:underline text-xs"
+                          >
+                            Abrir
+                          </a>
+                        </div>
                       ) : (
                         "-"
                       )}

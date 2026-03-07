@@ -14,71 +14,80 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(400).json({ error: "order_id is required" })
   }
 
-  const orderService = req.scope.resolve(Modules.ORDER) as any
-  const wompiService = req.scope.resolve<WompiModuleService>(WOMPI_MODULE)
-
-  // Check if a link already exists for this order
-  const existingPayment = await wompiService.findByOrderId(order_id)
-  if (
-    existingPayment &&
-    ["link_ready", "pending"].includes(existingPayment.wompi_status)
-  ) {
-    return res.status(409).json({
-      error: "A payment link already exists for this order",
-      wompi_payment: existingPayment,
-    })
-  }
-
-  let order: any
   try {
-    order = await orderService.retrieveOrder(order_id, {
-      relations: [
-        "items",
-        "items.tax_lines",
-        "items.adjustments",
-        "shipping_address",
-        "shipping_methods",
-        "shipping_methods.tax_lines",
-        "shipping_methods.adjustments",
-        "summary",
-      ],
+    const orderService = req.scope.resolve(Modules.ORDER) as any
+    const wompiService = req.scope.resolve<WompiModuleService>(WOMPI_MODULE)
+
+    // Step 1: Check for existing payment
+    const existingPayment = await wompiService.findByOrderId(order_id)
+    if (
+      existingPayment &&
+      ["link_ready", "pending"].includes(existingPayment.wompi_status)
+    ) {
+      return res.status(409).json({
+        error: "A payment link already exists for this order",
+        wompi_payment: existingPayment,
+      })
+    }
+
+    // Step 2: Retrieve order
+    let order: any
+    try {
+      order = await orderService.retrieveOrder(order_id, {
+        relations: ["items", "shipping_address", "summary"],
+      })
+    } catch (orderErr: any) {
+      console.error("[Wompi] Order retrieval failed:", orderErr)
+      return res.status(404).json({
+        error: "Order not found",
+        details: orderErr.message,
+      })
+    }
+
+    // Step 3: Calculate total
+    const reference = order.display_id?.toString() ?? order.id
+
+    // Debug: log available total fields
+    console.log("[Wompi] Order fields:", {
+      total: order.total,
+      summary: order.summary,
+      item_total: order.item_total,
+      currency_code: order.currency_code,
     })
-  } catch {
-    return res.status(404).json({ error: "Order not found" })
-  }
 
-  const reference = order.display_id?.toString() ?? order.id
+    // Extract total — Medusa v2 BigNumber or plain number
+    const rawTotal = order.total ?? order.summary?.current_order_total ?? 0
+    const orderTotal =
+      typeof rawTotal === "object"
+        ? Number(rawTotal.value ?? rawTotal.numeric ?? rawTotal)
+        : Number(rawTotal)
 
-  // In Medusa v2, order.total is a computed BigNumber field.
-  // Extract the numeric value from BigNumber or plain number.
-  const rawTotal =
-    order.total ?? order.summary?.current_order_total ?? 0
-  const orderTotal = typeof rawTotal === "object"
-    ? Number(rawTotal.value ?? rawTotal.numeric ?? 0)
-    : Number(rawTotal)
-
-  if (!orderTotal || orderTotal <= 0) {
-    return res
-      .status(400)
-      .json({ error: `Order total must be greater than 0 (got ${orderTotal})` })
-  }
-
-  // Medusa v2 stores COP amounts as whole pesos (0 decimal places).
-  // Wompi expects amount_in_cents: 28800 COP → 2880000 centavos.
-  const amountInCents = Math.round(orderTotal * 100)
-
-  try {
-    // Update order status to generating
-    await orderService.updateOrders([
-      {
-        id: order.id,
-        metadata: {
-          wompi_status: WOMPI_ORDER_STATUSES.LINK_GENERATING,
+    if (!orderTotal || orderTotal <= 0) {
+      return res.status(400).json({
+        error: `Order total must be greater than 0`,
+        debug: {
+          raw_total: String(rawTotal),
+          computed: orderTotal,
+          total_type: typeof order.total,
+          summary: order.summary
+            ? JSON.stringify(order.summary).substring(0, 500)
+            : null,
         },
-      },
-    ])
+      })
+    }
 
-    // Create payment link via Wompi Module service (the Medusa v2 way)
+    // Wompi expects amount_in_cents: COP pesos * 100
+    const amountInCents = Math.round(orderTotal * 100)
+
+    // Step 4: Update order metadata to generating
+    await orderService.updateOrders(order.id, {
+      metadata: {
+        ...(order.metadata ?? {}),
+        wompi_status: WOMPI_ORDER_STATUSES.LINK_GENERATING,
+      },
+    })
+
+    // Step 5: Create Wompi payment link
     const { paymentLinkId, checkoutUrl } =
       await wompiService.createPaymentLink({
         orderId: order.id,
@@ -90,7 +99,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           : undefined,
       })
 
-    // Save payment record
+    // Step 6: Save payment record
     const paymentRecord = await wompiService.createPaymentRecord({
       orderId: order.id,
       reference,
@@ -100,19 +109,17 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       customerEmail: order.email ?? undefined,
     })
 
-    // Update order metadata
-    await orderService.updateOrders([
-      {
-        id: order.id,
-        metadata: {
-          wompi_status: WOMPI_ORDER_STATUSES.LINK_READY,
-          wompi_payment_link_id: paymentLinkId,
-          wompi_checkout_url: checkoutUrl,
-        },
+    // Step 7: Update order metadata with link info
+    await orderService.updateOrders(order.id, {
+      metadata: {
+        ...(order.metadata ?? {}),
+        wompi_status: WOMPI_ORDER_STATUSES.LINK_READY,
+        wompi_payment_link_id: paymentLinkId,
+        wompi_checkout_url: checkoutUrl,
       },
-    ])
+    })
 
-    // Send payment link email to customer
+    // Step 8: Send email (non-blocking)
     if (order.email) {
       try {
         const customerName = order.shipping_address
@@ -135,7 +142,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           items,
         })
       } catch (emailErr) {
-        console.error("[Wompi] Payment link email failed (non-blocking):", emailErr)
+        console.error(
+          "[Wompi] Payment link email failed (non-blocking):",
+          emailErr
+        )
       }
     }
 
@@ -143,20 +153,22 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   } catch (err: any) {
     console.error("[Wompi] Failed to generate payment link:", err)
 
-    // Revert order status
+    // Best-effort revert
     try {
-      await orderService.updateOrders([
-        {
-          id: order.id,
-          metadata: {
-            wompi_status: WOMPI_ORDER_STATUSES.LINK_ERROR,
-          },
+      const orderService = req.scope.resolve(Modules.ORDER) as any
+      await orderService.updateOrders(order_id, {
+        metadata: {
+          wompi_status: WOMPI_ORDER_STATUSES.LINK_ERROR,
         },
-      ])
+      })
     } catch {
       // Best effort
     }
 
-    res.status(500).json({ error: "Failed to generate payment link" })
+    res.status(500).json({
+      error: "Failed to generate payment link",
+      details: err.message,
+      stack: process.env.NODE_ENV !== "production" ? err.stack : undefined,
+    })
   }
 }

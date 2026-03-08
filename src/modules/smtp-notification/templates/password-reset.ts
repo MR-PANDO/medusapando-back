@@ -36,7 +36,7 @@ export function passwordResetTemplate(data: PasswordResetData): string {
 
     <div style="background-color: #FEF3C7; border-radius: 8px; padding: 16px; margin: 20px 0; text-align: center;">
       <p style="font-family: 'Inter', Arial, sans-serif; font-size: 13px; color: #92400E; margin: 0;">
-        Este enlace expira en 1 hora. Si no solicitaste este cambio, puedes ignorar este mensaje.
+        Este enlace expira en 15 minutos. Si no solicitaste este cambio, puedes ignorar este mensaje.
       </p>
     </div>
 

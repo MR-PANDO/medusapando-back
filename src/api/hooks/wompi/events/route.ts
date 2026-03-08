@@ -4,7 +4,7 @@ import { validateWompiSignature } from "../../../../utils/wompi-signature"
 import { WOMPI_MODULE } from "../../../../modules/wompi"
 import type WompiModuleService from "../../../../modules/wompi/service"
 import { WOMPI_ORDER_STATUSES } from "../../../../modules/wompi/types"
-import { sendPaymentStatusEmail } from "../../../../utils/wompi-email"
+import { sendPaymentStatusEmail, sendPaymentCustomerEmail } from "../../../../utils/wompi-email"
 import { EMAIL_AUDIT_MODULE } from "../../../../modules/email-audit"
 import type EmailAuditModuleService from "../../../../modules/email-audit/service"
 
@@ -143,19 +143,20 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
-  // 6. Send email notification
+  // 6. Send email notifications
   if (finalStatuses.includes(wompiStatus)) {
+    let emailAuditService: EmailAuditModuleService | undefined
+    try {
+      emailAuditService = req.scope.resolve<EmailAuditModuleService>(EMAIL_AUDIT_MODULE)
+    } catch {}
+
+    // 6a. Email to payment manager (admin)
     try {
       const settings = await wompiService.getSettings()
       if (
         settings.emailNotificationsEnabled &&
         settings.paymentManagerEmail
       ) {
-        let emailAuditService: EmailAuditModuleService | undefined
-        try {
-          emailAuditService = req.scope.resolve<EmailAuditModuleService>(EMAIL_AUDIT_MODULE)
-        } catch {}
-
         await sendPaymentStatusEmail({
           to: settings.paymentManagerEmail,
           orderId: orderId ?? "unknown",
@@ -168,7 +169,36 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         })
       }
     } catch (err) {
-      console.error("[Wompi Webhook] Failed to send email:", err)
+      console.error("[Wompi Webhook] Failed to send admin email:", err)
+    }
+
+    // 6b. Email to customer about payment result
+    const custEmail = customerEmail ?? updatedRecord?.customer_email
+    if (custEmail) {
+      try {
+        // Try to get order display_id for nicer reference
+        let displayId: string | number | undefined
+        if (orderId) {
+          try {
+            const orderService = req.scope.resolve(Modules.ORDER) as any
+            const order = await orderService.retrieveOrder(orderId)
+            displayId = order?.display_id
+          } catch {}
+        }
+
+        await sendPaymentCustomerEmail({
+          to: custEmail,
+          customerName: customerName ?? undefined,
+          orderId: orderId ?? "unknown",
+          displayId,
+          wompiStatus,
+          amountInCents: amountInCents ?? 0,
+          paymentMethod: paymentMethodDetail ?? paymentMethodType ?? undefined,
+          auditService: emailAuditService,
+        })
+      } catch (err) {
+        console.error("[Wompi Webhook] Failed to send customer email:", err)
+      }
     }
   }
 

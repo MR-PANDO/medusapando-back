@@ -31,6 +31,14 @@ import {
   inviteUserTemplate,
   inviteUserSubject,
 } from "./templates/invite-user"
+import {
+  paymentCustomerTemplate,
+  paymentCustomerSubject,
+} from "./templates/payment-customer"
+import {
+  orderFulfillmentTemplate,
+  orderFulfillmentSubject,
+} from "./templates/order-fulfillment"
 
 type SmtpOptions = {
   host: string
@@ -192,6 +200,14 @@ class SmtpNotificationService extends AbstractNotificationProviderService {
       case "invite-user":
         subject = inviteUserSubject()
         html = inviteUserTemplate(templateData)
+        break
+      case "payment-customer":
+        subject = paymentCustomerSubject(templateData)
+        html = paymentCustomerTemplate(templateData)
+        break
+      case "order-fulfillment":
+        subject = orderFulfillmentSubject(templateData)
+        html = orderFulfillmentTemplate(templateData)
         break
       default:
         throw new MedusaError(

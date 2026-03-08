@@ -14,6 +14,10 @@ import {
   BRAND_GREEN,
   BRAND_ORANGE,
 } from "../modules/smtp-notification/templates/shared"
+import {
+  paymentCustomerSubject,
+  paymentCustomerTemplate,
+} from "../modules/smtp-notification/templates/payment-customer"
 
 function formatCOP(amountInCents: number): string {
   return formatCOPFull(amountInCents / 100)
@@ -123,6 +127,47 @@ export async function sendPaymentLinkEmail(params: PaymentLinkEmailParams) {
       }),
       email_type: "payment-link",
       metadata: { reference: params.reference, amountInCents: params.amountInCents },
+    },
+    params.auditService
+  )
+}
+
+// -- Payment Customer Email (sent to customer about payment result) --
+
+type PaymentCustomerEmailParams = {
+  to: string
+  customerName?: string
+  orderId: string
+  displayId?: string | number
+  wompiStatus: string
+  amountInCents: number
+  paymentMethod?: string
+  auditService?: EmailAuditModuleService
+}
+
+export async function sendPaymentCustomerEmail(params: PaymentCustomerEmailParams) {
+  const data = {
+    customer_name: params.customerName,
+    order_id: params.orderId,
+    display_id: params.displayId,
+    wompi_status: params.wompiStatus,
+    amount_in_cents: params.amountInCents,
+    payment_method: params.paymentMethod,
+  }
+
+  const subject = paymentCustomerSubject(data)
+  const html = paymentCustomerTemplate(data)
+
+  await sendEmail(
+    {
+      to: params.to,
+      subject,
+      html,
+      email_type: "payment-customer",
+      metadata: {
+        orderId: params.orderId,
+        wompiStatus: params.wompiStatus,
+      },
     },
     params.auditService
   )

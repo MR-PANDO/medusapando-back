@@ -49,7 +49,7 @@ export function emailWrapper(content: string, options?: { preheader?: string }):
           <!-- Header with logo -->
           <tr>
             <td style="padding: 28px 32px 20px; text-align: center; background-color: #ffffff;">
-              <img src="${STORE_URL}/logo.svg" alt="${STORE_NAME}" width="180" style="display: inline-block; max-width: 180px; height: auto;" />
+              <img src="${STORE_URL}/logo.svg" alt="${STORE_NAME}" width="180" height="50" style="display: block; margin: 0 auto; width: 180px; height: 50px; max-width: 180px;" />
             </td>
           </tr>
 
@@ -158,4 +158,8 @@ export function divider(): string {
 
 export function infoBox(content: string): string {
   return `<div style="background-color: #f9fafb; border-radius: 8px; padding: 20px; margin: 20px 0; border: 1px solid #e5e7eb;">${content}</div>`
+}
+
+export function productThumbnail(src: string, alt: string): string {
+  return `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" width="96" height="96" style="display: block; width: 96px; height: 96px; max-width: 96px; max-height: 96px; object-fit: cover; border-radius: 8px; border: 1px solid #e5e7eb;" />`
 }

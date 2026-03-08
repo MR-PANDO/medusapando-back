@@ -7,6 +7,7 @@ import {
   paragraph,
   divider,
   infoBox,
+  productThumbnail,
   STORE_NAME,
   STORE_URL,
   BRAND_GREEN,
@@ -61,7 +62,7 @@ export function orderPlacedTemplate(data: OrderPlacedData): string {
       ${items.map((item, i) => `
       <tr style="background-color: ${i % 2 === 0 ? "#ffffff" : "#f9fafb"};">
         <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
-          ${item.thumbnail ? `<img src="${escapeHtml(item.thumbnail)}" alt="${escapeHtml(item.title ?? "")}" style="width: 56px; height: 56px; object-fit: cover; border-radius: 8px; border: 1px solid #e5e7eb;" />` : ""}
+          ${item.thumbnail ? productThumbnail(item.thumbnail, item.title ?? "") : ""}
         </td>
         <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-family: ${FONT}; font-size: 14px; color: #1F2937;">
           <strong>${escapeHtml(item.title ?? "Producto")}</strong>

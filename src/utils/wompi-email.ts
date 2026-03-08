@@ -9,6 +9,7 @@ import {
   paragraph,
   divider,
   infoBox,
+  productThumbnail,
   STORE_NAME,
   BRAND_GREEN,
   BRAND_ORANGE,
@@ -60,7 +61,7 @@ export async function sendPaymentLinkEmail(params: PaymentLinkEmailParams) {
             <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
               ${
                 item.thumbnail
-                  ? `<img src="${escapeHtml(item.thumbnail)}" alt="${escapeHtml(item.title ?? "")}" style="width: 56px; height: 56px; object-fit: cover; border-radius: 8px; border: 1px solid #e5e7eb;" />`
+                  ? productThumbnail(item.thumbnail, item.title ?? "")
                   : ""
               }
             </td>

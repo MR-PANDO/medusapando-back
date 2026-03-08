@@ -49,7 +49,7 @@ export function emailWrapper(content: string, options?: { preheader?: string }):
           <!-- Header with logo -->
           <tr>
             <td style="padding: 28px 32px 20px; text-align: center; background-color: #ffffff;">
-              <img src="${STORE_URL}/logo.svg" alt="${STORE_NAME}" width="180" height="50" style="display: block; margin: 0 auto; width: 180px; height: 50px; max-width: 180px;" />
+              <img src="${STORE_URL}/logo.png" alt="${STORE_NAME}" width="180" height="50" style="display: block; margin: 0 auto; width: 180px; height: 50px; max-width: 180px;" />
             </td>
           </tr>
 

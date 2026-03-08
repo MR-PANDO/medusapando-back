@@ -1,69 +1,21 @@
 import { sendEmail } from "./email-sender"
 import type EmailAuditModuleService from "../modules/email-audit/service"
+import {
+  emailWrapper,
+  escapeHtml,
+  formatCOP as formatCOPFull,
+  ctaButton,
+  sectionTitle,
+  paragraph,
+  divider,
+  infoBox,
+  STORE_NAME,
+  BRAND_GREEN,
+  BRAND_ORANGE,
+} from "../modules/smtp-notification/templates/shared"
 
 function formatCOP(amountInCents: number): string {
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    minimumFractionDigits: 0,
-  }).format(amountInCents / 100)
-}
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;")
-}
-
-const BRAND_COLOR = "#2d6a4f"
-const STORE_NAME = "NutriMercados"
-
-function emailWrapper(content: string): string {
-  return `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-</head>
-<body style="margin: 0; padding: 0; background-color: #f5f5f5;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 0;">
-    <tr>
-      <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-          <!-- Header -->
-          <tr>
-            <td style="background-color: ${BRAND_COLOR}; padding: 30px; text-align: center;">
-              <h1 style="color: #ffffff; font-family: Arial, sans-serif; margin: 0; font-size: 24px;">
-                ${STORE_NAME}
-              </h1>
-            </td>
-          </tr>
-          <!-- Body -->
-          <tr>
-            <td style="padding: 30px;">
-              ${content}
-            </td>
-          </tr>
-          <!-- Footer -->
-          <tr>
-            <td style="background-color: #f9f9f9; padding: 20px; text-align: center; border-top: 1px solid #eee;">
-              <p style="font-family: Arial, sans-serif; font-size: 12px; color: #999; margin: 0;">
-                ${STORE_NAME} &mdash; Tu tienda de productos saludables
-              </p>
-              <p style="font-family: Arial, sans-serif; font-size: 12px; color: #999; margin: 5px 0 0;">
-                Este es un correo automatizado.
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`
+  return formatCOPFull(amountInCents / 100)
 }
 
 // -- Payment Link Email (sent to customer) --
@@ -89,34 +41,36 @@ export async function sendPaymentLinkEmail(params: PaymentLinkEmailParams) {
     ? `Hola ${escapeHtml(params.customerName)},`
     : "Hola,"
 
+  const FONT = `'Inter', Arial, Helvetica, sans-serif`
+
   const itemsHtml =
     params.items && params.items.length > 0
       ? `
         <table width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0; border-collapse: collapse;">
-          <tr style="background-color: #f9f9f9;">
-            <th style="padding: 10px; text-align: left; font-family: Arial, sans-serif; font-size: 13px; color: #666;"></th>
-            <th style="padding: 10px; text-align: left; font-family: Arial, sans-serif; font-size: 13px; color: #666;">Producto</th>
-            <th style="padding: 10px; text-align: center; font-family: Arial, sans-serif; font-size: 13px; color: #666;">Cant.</th>
-            <th style="padding: 10px; text-align: right; font-family: Arial, sans-serif; font-size: 13px; color: #666;">Precio</th>
+          <tr style="background-color: #f9fafb;">
+            <th style="padding: 10px 12px; text-align: left; font-family: ${FONT}; font-size: 12px; color: #6B7280; text-transform: uppercase; letter-spacing: 0.5px;"></th>
+            <th style="padding: 10px 12px; text-align: left; font-family: ${FONT}; font-size: 12px; color: #6B7280; text-transform: uppercase; letter-spacing: 0.5px;">Producto</th>
+            <th style="padding: 10px 12px; text-align: center; font-family: ${FONT}; font-size: 12px; color: #6B7280; text-transform: uppercase; letter-spacing: 0.5px;">Cant.</th>
+            <th style="padding: 10px 12px; text-align: right; font-family: ${FONT}; font-size: 12px; color: #6B7280; text-transform: uppercase; letter-spacing: 0.5px;">Precio</th>
           </tr>
           ${params.items
             .map(
               (item) => `
           <tr>
-            <td style="padding: 12px; border-bottom: 1px solid #eee;">
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
               ${
                 item.thumbnail
-                  ? `<img src="${escapeHtml(item.thumbnail)}" alt="${escapeHtml(item.title ?? "")}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;" />`
+                  ? `<img src="${escapeHtml(item.thumbnail)}" alt="${escapeHtml(item.title ?? "")}" style="width: 56px; height: 56px; object-fit: cover; border-radius: 8px; border: 1px solid #e5e7eb;" />`
                   : ""
               }
             </td>
-            <td style="padding: 12px; border-bottom: 1px solid #eee; font-family: Arial, sans-serif;">
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-family: ${FONT}; font-size: 14px; color: #1F2937;">
               <strong>${escapeHtml(item.title ?? "Producto")}</strong>
             </td>
-            <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center; font-family: Arial, sans-serif;">
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center; font-family: ${FONT}; font-size: 14px; color: #4B5563;">
               ${item.quantity ?? 1}
             </td>
-            <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right; font-family: Arial, sans-serif;">
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-family: ${FONT}; font-size: 14px; color: #1F2937;">
               ${item.unit_price != null ? formatCOP(item.unit_price) : ""}
             </td>
           </tr>`
@@ -126,43 +80,46 @@ export async function sendPaymentLinkEmail(params: PaymentLinkEmailParams) {
       : ""
 
   const content = `
-    <p style="font-family: Arial, sans-serif; font-size: 16px; color: #333; line-height: 1.6;">
-      ${greeting}
-    </p>
-    <p style="font-family: Arial, sans-serif; font-size: 16px; color: #333; line-height: 1.6;">
-      Tu link de pago ha sido generado para el pedido <strong>#${escapeHtml(params.reference)}</strong>.
-    </p>
-    <p style="font-family: Arial, sans-serif; font-size: 16px; color: #333; line-height: 1.6;">
-      Total a pagar: <strong style="font-size: 20px; color: ${BRAND_COLOR};">${escapeHtml(amount)}</strong>
-    </p>
+    <!-- Payment icon -->
+    <div style="text-align: center; margin-bottom: 20px;">
+      <div style="display: inline-block; background-color: #f0f7ec; border-radius: 50%; width: 64px; height: 64px; line-height: 64px; text-align: center;">
+        <span style="font-size: 28px;">&#128179;</span>
+      </div>
+    </div>
+
+    ${sectionTitle("Link de pago generado")}
+    ${paragraph(greeting)}
+    ${paragraph(`Tu link de pago ha sido generado para el pedido <strong>#${escapeHtml(params.reference)}</strong>.`)}
+
+    <!-- Amount highlight -->
+    <div style="background: linear-gradient(135deg, #f0f7ec 0%, #fdf6f0 100%); border-radius: 10px; padding: 24px; margin: 20px 0; text-align: center; border: 1px solid #e5e7eb;">
+      <p style="font-family: ${FONT}; font-size: 13px; color: #6B7280; margin: 0 0 4px; text-transform: uppercase; letter-spacing: 0.5px;">Total a pagar</p>
+      <p style="font-family: ${FONT}; font-size: 28px; color: ${BRAND_GREEN}; margin: 0; font-weight: 700;">
+        ${escapeHtml(amount)}
+      </p>
+    </div>
 
     ${itemsHtml}
 
-    <!-- CTA Button -->
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
-      <tr>
-        <td align="center">
-          <a href="${escapeHtml(params.checkoutUrl)}" style="display: inline-block; background-color: ${BRAND_COLOR}; color: #ffffff; font-family: Arial, sans-serif; font-size: 18px; font-weight: bold; text-decoration: none; padding: 16px 48px; border-radius: 8px;">
-            Pagar ahora
-          </a>
-        </td>
-      </tr>
-    </table>
+    ${ctaButton(escapeHtml(params.checkoutUrl), "Pagar ahora")}
 
-    <p style="font-family: Arial, sans-serif; font-size: 14px; color: #666; line-height: 1.6; text-align: center;">
-      Haz clic en el boton para completar tu pago de forma segura a traves de Wompi.
-    </p>
-    <p style="font-family: Arial, sans-serif; font-size: 13px; color: #999; line-height: 1.6; text-align: center;">
-      Si no solicitaste este pago, puedes ignorar este mensaje.
-    </p>`
+    <div style="background-color: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0; text-align: center; border: 1px solid #e5e7eb;">
+      <p style="font-family: ${FONT}; font-size: 13px; color: #6B7280; margin: 0;">
+        &#128274; Pago seguro a traves de <strong>Wompi</strong> — procesador de pagos certificado
+      </p>
+    </div>
 
-  const subject = `Tu link de pago - Pedido #${params.reference} | ${STORE_NAME}`
+    ${paragraph("Si no solicitaste este pago, puedes ignorar este mensaje.", { muted: true, center: true, small: true })}`
+
+  const subject = `Link de pago - Pedido #${params.reference} | ${STORE_NAME}`
 
   await sendEmail(
     {
       to: params.to,
       subject,
-      html: emailWrapper(content),
+      html: emailWrapper(content, {
+        preheader: `Tu link de pago por ${amount} esta listo — ${STORE_NAME}`,
+      }),
       email_type: "payment-link",
       metadata: { reference: params.reference, amountInCents: params.amountInCents },
     },
@@ -184,56 +141,60 @@ type PaymentStatusEmailParams = {
   auditService?: EmailAuditModuleService
 }
 
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  APPROVED: { label: "APROBADO", color: "#16a34a" },
-  DECLINED: { label: "RECHAZADO", color: "#dc2626" },
-  VOIDED: { label: "ANULADO", color: "#6b7280" },
-  ERROR: { label: "ERROR", color: "#ea580c" },
+const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }> = {
+  APPROVED: { label: "APROBADO", color: "#16a34a", bg: "#f0fdf4" },
+  DECLINED: { label: "RECHAZADO", color: "#dc2626", bg: "#fef2f2" },
+  VOIDED: { label: "ANULADO", color: "#6b7280", bg: "#f9fafb" },
+  ERROR: { label: "ERROR", color: "#ea580c", bg: "#fff7ed" },
 }
 
 export async function sendPaymentStatusEmail(
   params: PaymentStatusEmailParams
 ) {
-  const { label, color } =
+  const { label, color, bg } =
     STATUS_LABELS[params.wompiStatus] ?? {
       label: params.wompiStatus,
       color: "#6b7280",
+      bg: "#f9fafb",
     }
 
   const amount = formatCOP(params.amountInCents)
+  const FONT = `'Inter', Arial, Helvetica, sans-serif`
 
   const content = `
-    <h2 style="font-family: Arial, sans-serif; color: #111; margin: 0 0 20px;">Actualizacion de pago</h2>
-    <table style="border-collapse:collapse;width:100%">
+    ${sectionTitle("Actualizacion de pago Wompi")}
+
+    <!-- Status badge -->
+    <div style="text-align: center; margin: 20px 0;">
+      <span style="display: inline-block; background-color: ${bg}; color: ${color}; padding: 8px 24px; border-radius: 20px; font-weight: 700; font-family: ${FONT}; font-size: 14px; letter-spacing: 0.5px; border: 1px solid ${color}20;">
+        ${escapeHtml(label)}
+      </span>
+    </div>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0; border-collapse: collapse;">
       <tr>
-        <td style="padding:10px 8px;border-bottom:1px solid #eee;font-weight:bold;font-family:Arial,sans-serif;">Pedido</td>
-        <td style="padding:10px 8px;border-bottom:1px solid #eee;font-family:monospace;font-size:13px;">${escapeHtml(params.orderId)}</td>
+        <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; font-weight: 600; font-family: ${FONT}; font-size: 14px; color: #374151; width: 140px;">Pedido</td>
+        <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; font-family: monospace; font-size: 13px; color: #1F2937;">${escapeHtml(params.orderId)}</td>
       </tr>
       <tr>
-        <td style="padding:10px 8px;border-bottom:1px solid #eee;font-weight:bold;font-family:Arial,sans-serif;">Transaccion</td>
-        <td style="padding:10px 8px;border-bottom:1px solid #eee;font-family:monospace;font-size:13px;">${escapeHtml(params.transactionId)}</td>
+        <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; font-weight: 600; font-family: ${FONT}; font-size: 14px; color: #374151;">Transaccion</td>
+        <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; font-family: monospace; font-size: 13px; color: #1F2937;">${escapeHtml(params.transactionId)}</td>
       </tr>
       <tr>
-        <td style="padding:10px 8px;border-bottom:1px solid #eee;font-weight:bold;font-family:Arial,sans-serif;">Estado</td>
-        <td style="padding:10px 8px;border-bottom:1px solid #eee;">
-          <span style="background:${color};color:#fff;padding:4px 12px;border-radius:4px;font-weight:bold;font-family:Arial,sans-serif;">${escapeHtml(label)}</span>
-        </td>
+        <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; font-weight: 600; font-family: ${FONT}; font-size: 14px; color: #374151;">Monto</td>
+        <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; font-family: ${FONT}; font-size: 16px; color: ${BRAND_GREEN}; font-weight: 700;">${escapeHtml(amount)}</td>
       </tr>
       <tr>
-        <td style="padding:10px 8px;border-bottom:1px solid #eee;font-weight:bold;font-family:Arial,sans-serif;">Monto</td>
-        <td style="padding:10px 8px;border-bottom:1px solid #eee;font-family:Arial,sans-serif;">${escapeHtml(amount)}</td>
+        <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; font-weight: 600; font-family: ${FONT}; font-size: 14px; color: #374151;">Metodo</td>
+        <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; font-family: ${FONT}; font-size: 14px; color: #1F2937;">${escapeHtml(params.paymentMethodType ?? "N/A")}</td>
       </tr>
       <tr>
-        <td style="padding:10px 8px;border-bottom:1px solid #eee;font-weight:bold;font-family:Arial,sans-serif;">Metodo</td>
-        <td style="padding:10px 8px;border-bottom:1px solid #eee;font-family:Arial,sans-serif;">${escapeHtml(params.paymentMethodType ?? "N/A")}</td>
+        <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; font-weight: 600; font-family: ${FONT}; font-size: 14px; color: #374151;">Cliente</td>
+        <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; font-family: ${FONT}; font-size: 14px; color: #1F2937;">${escapeHtml(params.customerEmail ?? "N/A")}</td>
       </tr>
       <tr>
-        <td style="padding:10px 8px;border-bottom:1px solid #eee;font-weight:bold;font-family:Arial,sans-serif;">Cliente</td>
-        <td style="padding:10px 8px;border-bottom:1px solid #eee;font-family:Arial,sans-serif;">${escapeHtml(params.customerEmail ?? "N/A")}</td>
-      </tr>
-      <tr>
-        <td style="padding:10px 8px;border-bottom:1px solid #eee;font-weight:bold;font-family:Arial,sans-serif;">Fecha</td>
-        <td style="padding:10px 8px;border-bottom:1px solid #eee;font-family:Arial,sans-serif;">${new Date().toLocaleString("es-CO", { timeZone: "America/Bogota" })}</td>
+        <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; font-weight: 600; font-family: ${FONT}; font-size: 14px; color: #374151;">Fecha</td>
+        <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; font-family: ${FONT}; font-size: 14px; color: #1F2937;">${new Date().toLocaleString("es-CO", { timeZone: "America/Bogota" })}</td>
       </tr>
     </table>`
 
@@ -243,7 +204,9 @@ export async function sendPaymentStatusEmail(
     {
       to: params.to,
       subject,
-      html: emailWrapper(content),
+      html: emailWrapper(content, {
+        preheader: `Pago ${label} por ${amount} — Pedido ${params.orderId}`,
+      }),
       email_type: "payment-status",
       metadata: {
         orderId: params.orderId,

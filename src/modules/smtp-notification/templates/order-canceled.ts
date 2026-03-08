@@ -1,4 +1,16 @@
-import { emailWrapper, escapeHtml } from "./shared"
+import {
+  emailWrapper,
+  escapeHtml,
+  ctaButton,
+  sectionTitle,
+  paragraph,
+  infoBox,
+  STORE_NAME,
+  STORE_URL,
+  STORE_EMAIL,
+  STORE_WHATSAPP,
+  BRAND_ORANGE,
+} from "./shared"
 
 type OrderCanceledData = {
   order_id?: string
@@ -10,25 +22,40 @@ type OrderCanceledData = {
 
 export function orderCanceledSubject(data: OrderCanceledData): string {
   const ref = data.display_id || data.order_id || ""
-  return `Pedido #${ref} cancelado - NutriMercados`
+  return `Pedido #${ref} cancelado - ${STORE_NAME}`
 }
 
 export function orderCanceledTemplate(data: OrderCanceledData): string {
   const name = data.customer_name || ""
   const greeting = name ? `Hola ${escapeHtml(name)},` : "Hola,"
   const ref = String(data.display_id || data.order_id || "")
+  const storefrontUrl = data.storefront_url || STORE_URL
 
-  return emailWrapper(`
-    <p style="font-family: Arial, sans-serif; font-size: 16px; color: #333; line-height: 1.6;">
-      ${greeting}
-    </p>
-    <p style="font-family: Arial, sans-serif; font-size: 16px; color: #333; line-height: 1.6;">
-      Tu pedido <strong>#${escapeHtml(ref)}</strong> ha sido cancelado.
-    </p>
-    <p style="font-family: Arial, sans-serif; font-size: 16px; color: #333; line-height: 1.6;">
-      Si tienes alguna pregunta sobre esta cancelacion o necesitas ayuda, no dudes en contactarnos.
-    </p>
-    <p style="font-family: Arial, sans-serif; font-size: 14px; color: #666; line-height: 1.6; text-align: center;">
-      Si esto fue un error, por favor comunicate con nuestro equipo de soporte lo antes posible.
-    </p>`)
+  const content = `
+    <!-- Canceled icon -->
+    <div style="text-align: center; margin-bottom: 20px;">
+      <div style="display: inline-block; background-color: #FEF3C7; border-radius: 50%; width: 64px; height: 64px; line-height: 64px; text-align: center;">
+        <span style="font-size: 32px;">&#10007;</span>
+      </div>
+    </div>
+
+    ${sectionTitle(`Pedido #${escapeHtml(ref)} cancelado`)}
+    ${paragraph(greeting)}
+    ${paragraph("Lamentamos informarte que tu pedido ha sido cancelado. Si se realizo algun cobro, sera reembolsado en los proximos dias habiles.")}
+
+    ${infoBox(`
+      <p style="font-family: 'Inter', Arial, sans-serif; font-size: 13px; color: ${BRAND_ORANGE}; margin: 0 0 8px; font-weight: 600;">Necesitas ayuda?</p>
+      <p style="font-family: 'Inter', Arial, sans-serif; font-size: 14px; color: #374151; margin: 0; line-height: 1.8;">
+        Si tienes preguntas sobre esta cancelacion, contactanos:<br/>
+        Email: <a href="mailto:${STORE_EMAIL}" style="color: ${BRAND_ORANGE}; text-decoration: none;">${STORE_EMAIL}</a><br/>
+        WhatsApp: <a href="https://wa.me/${STORE_WHATSAPP}" style="color: ${BRAND_ORANGE}; text-decoration: none;">Escribenos aqui</a>
+      </p>
+    `)}
+
+    ${ctaButton(`${escapeHtml(storefrontUrl)}/co/store`, "Seguir comprando", BRAND_ORANGE)}
+    ${paragraph("Si esto fue un error, por favor comunicate con nuestro equipo lo antes posible.", { muted: true, center: true, small: true })}`
+
+  return emailWrapper(content, {
+    preheader: `Tu pedido #${ref} ha sido cancelado — ${STORE_NAME}`,
+  })
 }

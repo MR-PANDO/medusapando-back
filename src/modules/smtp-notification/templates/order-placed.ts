@@ -1,4 +1,17 @@
-import { emailWrapper, escapeHtml, BRAND_COLOR } from "./shared"
+import {
+  emailWrapper,
+  escapeHtml,
+  formatCOP,
+  ctaButton,
+  sectionTitle,
+  paragraph,
+  divider,
+  infoBox,
+  STORE_NAME,
+  STORE_URL,
+  BRAND_GREEN,
+  BRAND_ORANGE,
+} from "./shared"
 
 type OrderPlacedData = {
   order_id?: string
@@ -22,84 +35,81 @@ type OrderPlacedData = {
   [key: string]: unknown
 }
 
-function formatCOP(amount: number): string {
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    minimumFractionDigits: 0,
-  }).format(amount)
-}
-
 export function orderPlacedSubject(data: OrderPlacedData): string {
   const ref = data.display_id || data.order_id || ""
-  return `Confirmacion de pedido #${ref} - NutriMercados`
+  return `Pedido #${ref} confirmado - ${STORE_NAME}`
 }
 
 export function orderPlacedTemplate(data: OrderPlacedData): string {
   const name = data.customer_name || ""
   const greeting = name ? `Hola ${escapeHtml(name)},` : "Hola,"
   const ref = String(data.display_id || data.order_id || "")
-  const storefrontUrl = data.storefront_url || "https://nutrimercados.com"
+  const storefrontUrl = data.storefront_url || STORE_URL
   const items = data.items || []
   const total = data.total ?? 0
 
+  const FONT = `'Inter', Arial, Helvetica, sans-serif`
+
   const itemsHtml = items.length > 0 ? `
     <table width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0; border-collapse: collapse;">
-      <tr style="background-color: #f9f9f9;">
-        <th style="padding: 10px; text-align: left; font-family: Arial, sans-serif; font-size: 13px; color: #666;"></th>
-        <th style="padding: 10px; text-align: left; font-family: Arial, sans-serif; font-size: 13px; color: #666;">Producto</th>
-        <th style="padding: 10px; text-align: center; font-family: Arial, sans-serif; font-size: 13px; color: #666;">Cant.</th>
-        <th style="padding: 10px; text-align: right; font-family: Arial, sans-serif; font-size: 13px; color: #666;">Precio</th>
+      <tr style="background-color: ${BRAND_GREEN};">
+        <th style="padding: 10px 12px; text-align: left; font-family: ${FONT}; font-size: 12px; color: #ffffff; text-transform: uppercase; letter-spacing: 0.5px;"></th>
+        <th style="padding: 10px 12px; text-align: left; font-family: ${FONT}; font-size: 12px; color: #ffffff; text-transform: uppercase; letter-spacing: 0.5px;">Producto</th>
+        <th style="padding: 10px 12px; text-align: center; font-family: ${FONT}; font-size: 12px; color: #ffffff; text-transform: uppercase; letter-spacing: 0.5px;">Cant.</th>
+        <th style="padding: 10px 12px; text-align: right; font-family: ${FONT}; font-size: 12px; color: #ffffff; text-transform: uppercase; letter-spacing: 0.5px;">Precio</th>
       </tr>
-      ${items.map(item => `
-      <tr>
-        <td style="padding: 12px; border-bottom: 1px solid #eee;">
-          ${item.thumbnail ? `<img src="${escapeHtml(item.thumbnail)}" alt="${escapeHtml(item.title ?? "")}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;" />` : ""}
+      ${items.map((item, i) => `
+      <tr style="background-color: ${i % 2 === 0 ? "#ffffff" : "#f9fafb"};">
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
+          ${item.thumbnail ? `<img src="${escapeHtml(item.thumbnail)}" alt="${escapeHtml(item.title ?? "")}" style="width: 56px; height: 56px; object-fit: cover; border-radius: 8px; border: 1px solid #e5e7eb;" />` : ""}
         </td>
-        <td style="padding: 12px; border-bottom: 1px solid #eee; font-family: Arial, sans-serif;">
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-family: ${FONT}; font-size: 14px; color: #1F2937;">
           <strong>${escapeHtml(item.title ?? "Producto")}</strong>
         </td>
-        <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center; font-family: Arial, sans-serif;">
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center; font-family: ${FONT}; font-size: 14px; color: #4B5563;">
           ${item.quantity ?? 1}
         </td>
-        <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right; font-family: Arial, sans-serif;">
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-family: ${FONT}; font-size: 14px; color: #1F2937;">
           ${item.unit_price != null ? formatCOP(item.unit_price) : ""}
         </td>
       </tr>`).join("")}
       <tr>
-        <td colspan="3" style="padding: 12px; text-align: right; font-family: Arial, sans-serif; font-weight: bold;">Total:</td>
-        <td style="padding: 12px; text-align: right; font-family: Arial, sans-serif; font-weight: bold; color: ${BRAND_COLOR}; font-size: 18px;">
+        <td colspan="3" style="padding: 14px 12px; text-align: right; font-family: ${FONT}; font-weight: 700; font-size: 15px; color: #1F2937;">Total:</td>
+        <td style="padding: 14px 12px; text-align: right; font-family: ${FONT}; font-weight: 700; font-size: 18px; color: ${BRAND_GREEN};">
           ${formatCOP(total)}
         </td>
       </tr>
     </table>` : ""
 
   const addressHtml = data.shipping_address ? `
-    <p style="font-family: Arial, sans-serif; font-size: 14px; color: #666; line-height: 1.6;">
-      <strong>Direccion de envio:</strong><br/>
-      ${escapeHtml(data.shipping_address.address_1 ?? "")}<br/>
-      ${escapeHtml(data.shipping_address.city ?? "")}${data.shipping_address.province ? `, ${escapeHtml(data.shipping_address.province)}` : ""}
-    </p>` : ""
+    ${divider()}
+    ${infoBox(`
+      <p style="font-family: ${FONT}; font-size: 13px; color: ${BRAND_GREEN}; margin: 0 0 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Direccion de envio</p>
+      <p style="font-family: ${FONT}; font-size: 14px; color: #374151; margin: 0; line-height: 1.6;">
+        ${escapeHtml(data.shipping_address.address_1 ?? "")}<br/>
+        ${escapeHtml(data.shipping_address.city ?? "")}${data.shipping_address.province ? `, ${escapeHtml(data.shipping_address.province)}` : ""}
+      </p>
+    `)}` : ""
 
-  return emailWrapper(`
-    <p style="font-family: Arial, sans-serif; font-size: 16px; color: #333; line-height: 1.6;">
-      ${greeting}
-    </p>
-    <p style="font-family: Arial, sans-serif; font-size: 16px; color: #333; line-height: 1.6;">
-      Hemos recibido tu pedido <strong>#${escapeHtml(ref)}</strong>. Gracias por tu compra.
-    </p>
+  const content = `
+    <!-- Order confirmed icon -->
+    <div style="text-align: center; margin-bottom: 20px;">
+      <div style="display: inline-block; background-color: #f0f7ec; border-radius: 50%; width: 64px; height: 64px; line-height: 64px; text-align: center;">
+        <span style="font-size: 32px;">&#10003;</span>
+      </div>
+    </div>
+
+    ${sectionTitle(`Pedido #${escapeHtml(ref)} confirmado`)}
+    ${paragraph(greeting)}
+    ${paragraph("Hemos recibido tu pedido y lo estamos preparando. Gracias por confiar en nosotros para tus productos saludables.")}
+
     ${itemsHtml}
     ${addressHtml}
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
-      <tr>
-        <td align="center">
-          <a href="${escapeHtml(storefrontUrl)}/co/account/orders" style="display: inline-block; background-color: ${BRAND_COLOR}; color: #ffffff; font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; text-decoration: none; padding: 14px 40px; border-radius: 8px;">
-            Ver mi pedido
-          </a>
-        </td>
-      </tr>
-    </table>
-    <p style="font-family: Arial, sans-serif; font-size: 14px; color: #666; line-height: 1.6; text-align: center;">
-      Te notificaremos cuando tu pedido sea enviado.
-    </p>`)
+
+    ${ctaButton(`${escapeHtml(storefrontUrl)}/co/account/orders`, "Ver mi pedido")}
+    ${paragraph("Te notificaremos cuando tu pedido sea enviado.", { muted: true, center: true, small: true })}`
+
+  return emailWrapper(content, {
+    preheader: `Pedido #${ref} confirmado — Gracias por tu compra en ${STORE_NAME}`,
+  })
 }

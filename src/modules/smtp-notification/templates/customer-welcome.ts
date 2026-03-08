@@ -1,4 +1,13 @@
-import { emailWrapper, escapeHtml, BRAND_COLOR } from "./shared"
+import {
+  emailWrapper,
+  escapeHtml,
+  ctaButton,
+  sectionTitle,
+  paragraph,
+  STORE_NAME,
+  STORE_URL,
+  BRAND_GREEN,
+} from "./shared"
 
 type CustomerWelcomeData = {
   customer_name?: string
@@ -7,31 +16,33 @@ type CustomerWelcomeData = {
 }
 
 export function customerWelcomeSubject(): string {
-  return "Bienvenido a NutriMercados"
+  return `Bienvenido a ${STORE_NAME}`
 }
 
 export function customerWelcomeTemplate(data: CustomerWelcomeData): string {
   const name = data.customer_name || ""
-  const storefrontUrl = data.storefront_url || "https://nutrimercados.com"
+  const storefrontUrl = data.storefront_url || STORE_URL
   const greeting = name ? `Hola ${escapeHtml(name)},` : "Hola,"
 
-  return emailWrapper(`
-    <p style="font-family: Arial, sans-serif; font-size: 16px; color: #333; line-height: 1.6;">
-      ${greeting}
-    </p>
-    <p style="font-family: Arial, sans-serif; font-size: 16px; color: #333; line-height: 1.6;">
-      Tu cuenta ha sido creada exitosamente. Ahora puedes acceder a todos nuestros productos saludables y hacer seguimiento de tus pedidos.
-    </p>
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
-      <tr>
-        <td align="center">
-          <a href="${escapeHtml(storefrontUrl)}/co/store" style="display: inline-block; background-color: ${BRAND_COLOR}; color: #ffffff; font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; text-decoration: none; padding: 14px 40px; border-radius: 8px;">
-            Explorar productos
-          </a>
-        </td>
-      </tr>
-    </table>
-    <p style="font-family: Arial, sans-serif; font-size: 14px; color: #666; line-height: 1.6; text-align: center;">
-      Si tienes alguna pregunta, no dudes en contactarnos.
-    </p>`)
+  const content = `
+    ${sectionTitle("Bienvenido a tu mercado saludable")}
+    ${paragraph(greeting)}
+    ${paragraph("Tu cuenta ha sido creada exitosamente. Ahora puedes disfrutar de todos nuestros productos naturales, organicos y saludables.")}
+
+    <div style="background: linear-gradient(135deg, #f0f7ec 0%, #fdf6f0 100%); border-radius: 10px; padding: 24px; margin: 20px 0; border-left: 4px solid ${BRAND_GREEN};">
+      <p style="font-family: 'Inter', Arial, sans-serif; font-size: 15px; color: #374151; margin: 0 0 8px; font-weight: 600;">Con tu cuenta puedes:</p>
+      <ul style="font-family: 'Inter', Arial, sans-serif; font-size: 14px; color: #4B5563; margin: 0; padding-left: 20px; line-height: 2;">
+        <li>Explorar nuestro catalogo de productos saludables</li>
+        <li>Hacer seguimiento de tus pedidos</li>
+        <li>Guardar tus direcciones de envio</li>
+        <li>Acceder a ofertas exclusivas</li>
+      </ul>
+    </div>
+
+    ${ctaButton(`${escapeHtml(storefrontUrl)}/co/store`, "Explorar productos")}
+    ${paragraph("Si tienes alguna pregunta, no dudes en contactarnos por WhatsApp o correo. Estamos para ayudarte.", { muted: true, center: true, small: true })}`
+
+  return emailWrapper(content, {
+    preheader: `Bienvenido a ${STORE_NAME} — tu mercado saludable desde 2012`,
+  })
 }

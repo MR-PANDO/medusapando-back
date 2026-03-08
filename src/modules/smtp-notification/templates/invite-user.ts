@@ -1,4 +1,13 @@
-import { emailWrapper, escapeHtml, BRAND_COLOR } from "./shared"
+import {
+  emailWrapper,
+  escapeHtml,
+  ctaButton,
+  sectionTitle,
+  paragraph,
+  infoBox,
+  STORE_NAME,
+  BRAND_GREEN,
+} from "./shared"
 
 type InviteUserData = {
   invite_link?: string
@@ -6,29 +15,34 @@ type InviteUserData = {
 }
 
 export function inviteUserSubject(): string {
-  return "Te han invitado a NutriMercados Admin"
+  return `Invitacion al equipo ${STORE_NAME}`
 }
 
 export function inviteUserTemplate(data: InviteUserData): string {
   const inviteLink = data.invite_link || "#"
 
-  return emailWrapper(`
-    <p style="font-family: Arial, sans-serif; font-size: 16px; color: #333; line-height: 1.6;">
-      Hola,
-    </p>
-    <p style="font-family: Arial, sans-serif; font-size: 16px; color: #333; line-height: 1.6;">
-      Has sido invitado a unirte al equipo de administracion de <strong>NutriMercados</strong>. Haz clic en el boton para aceptar la invitacion y configurar tu cuenta.
-    </p>
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
-      <tr>
-        <td align="center">
-          <a href="${escapeHtml(inviteLink)}" style="display: inline-block; background-color: ${BRAND_COLOR}; color: #ffffff; font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; text-decoration: none; padding: 14px 40px; border-radius: 8px;">
-            Aceptar invitacion
-          </a>
-        </td>
-      </tr>
-    </table>
-    <p style="font-family: Arial, sans-serif; font-size: 14px; color: #666; line-height: 1.6; text-align: center;">
-      Si no esperabas esta invitacion, puedes ignorar este mensaje.
-    </p>`)
+  const content = `
+    <!-- Team icon -->
+    <div style="text-align: center; margin-bottom: 20px;">
+      <div style="display: inline-block; background-color: #f0f7ec; border-radius: 50%; width: 64px; height: 64px; line-height: 64px; text-align: center;">
+        <span style="font-size: 28px;">&#128101;</span>
+      </div>
+    </div>
+
+    ${sectionTitle("Te han invitado al equipo")}
+    ${paragraph("Hola,")}
+    ${paragraph(`Has sido invitado a unirte al equipo de administracion de <strong>${STORE_NAME}</strong>. Acepta la invitacion para configurar tu cuenta y comenzar a gestionar la tienda.`)}
+
+    ${infoBox(`
+      <p style="font-family: 'Inter', Arial, sans-serif; font-size: 14px; color: #374151; margin: 0; text-align: center;">
+        Al unirte tendras acceso al panel de administracion donde podras gestionar productos, pedidos y mas.
+      </p>
+    `)}
+
+    ${ctaButton(escapeHtml(inviteLink), "Aceptar invitacion")}
+    ${paragraph("Si no esperabas esta invitacion, puedes ignorar este mensaje.", { muted: true, center: true, small: true })}`
+
+  return emailWrapper(content, {
+    preheader: `Te han invitado a unirte al equipo de ${STORE_NAME}`,
+  })
 }

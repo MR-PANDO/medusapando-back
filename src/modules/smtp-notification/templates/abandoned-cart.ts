@@ -1,3 +1,16 @@
+import {
+  emailWrapper,
+  escapeHtml,
+  formatCOP,
+  ctaButton,
+  sectionTitle,
+  paragraph,
+  STORE_NAME,
+  STORE_URL,
+  BRAND_GREEN,
+  BRAND_ORANGE,
+} from "./shared"
+
 type AbandonedCartData = {
   storefront_url?: string
   cart_id?: string
@@ -14,26 +27,29 @@ type AbandonedCartData = {
 }
 
 const SUBJECTS: Record<number, string> = {
-  1: "Tu carrito te espera en NutriMercados",
-  2: "¡No olvides tu carrito! Tus productos te esperan",
-  3: "Última oportunidad — tu carrito expira pronto",
+  1: `Tu carrito te espera en ${STORE_NAME}`,
+  2: `Tus productos saludables te esperan`,
+  3: `Ultima oportunidad — tu carrito expira pronto`,
 }
 
-const MESSAGES: Record<number, { intro: string; cta: string }> = {
+const MESSAGES: Record<number, { intro: string; cta: string; icon: string; preheader: string }> = {
   1: {
-    intro:
-      "Notamos que dejaste algunos productos en tu carrito. No te preocupes, los guardamos para ti.",
+    intro: "Notamos que dejaste algunos productos en tu carrito. No te preocupes, los guardamos para ti.",
     cta: "Completar mi compra",
+    icon: "&#128722;",
+    preheader: "Tus productos saludables te esperan en el carrito",
   },
   2: {
-    intro:
-      "Tus productos favoritos siguen esperándote. ¡No los dejes ir! Completa tu pedido antes de que se agoten.",
+    intro: "Tus productos favoritos siguen esperandote. Completa tu pedido antes de que se agoten.",
     cta: "Volver a mi carrito",
+    icon: "&#9200;",
+    preheader: "No olvides tus productos — completa tu pedido",
   },
   3: {
-    intro:
-      "Esta es tu última oportunidad — tu carrito expira pronto y no queremos que pierdas tus productos. ¡Completa tu compra ahora!",
+    intro: "Esta es tu ultima oportunidad — tu carrito expira pronto y no queremos que pierdas tus productos saludables.",
     cta: "Completar mi compra ahora",
+    icon: "&#9888;",
+    preheader: "Ultima oportunidad — tu carrito expira pronto",
   },
 }
 
@@ -42,122 +58,62 @@ export function getAbandonedCartSubject(reminderNumber: number): string {
 }
 
 export function abandonedCartTemplate(data: AbandonedCartData): string {
-  const storefrontUrl = data.storefront_url || "https://nutrimercados.com"
+  const storefrontUrl = data.storefront_url || STORE_URL
   const cartId = data.cart_id || ""
   const items = data.items || []
   const customerName = data.customer_name || ""
   const reminderNumber = data.reminder_number || 1
 
   const recoveryUrl = `${storefrontUrl}/co/cart/recover/${cartId}`
-  const greeting = customerName ? `Hola ${customerName},` : "Hola,"
+  const greeting = customerName ? `Hola ${escapeHtml(customerName)},` : "Hola,"
   const message = MESSAGES[reminderNumber] || MESSAGES[1]
 
-  const itemsHtml = items
-    .map(
-      (item) => `
-    <tr>
-      <td style="padding: 12px; border-bottom: 1px solid #eee;">
-        ${
-          item.thumbnail
-            ? `<img src="${item.thumbnail}" alt="${item.title}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;" />`
-            : ""
-        }
-      </td>
-      <td style="padding: 12px; border-bottom: 1px solid #eee; font-family: Arial, sans-serif;">
-        <strong>${item.title || "Producto"}</strong>
-        ${item.variant_title ? `<br/><span style="color: #666; font-size: 13px;">${item.variant_title}</span>` : ""}
-      </td>
-      <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center; font-family: Arial, sans-serif;">
-        ${item.quantity || 1}
-      </td>
-      <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right; font-family: Arial, sans-serif;">
-        ${item.unit_price != null ? `$${(item.unit_price / 100).toLocaleString("es-CO")}` : ""}
-      </td>
-    </tr>`
-    )
-    .join("")
+  const FONT = `'Inter', Arial, Helvetica, sans-serif`
 
-  return `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-</head>
-<body style="margin: 0; padding: 0; background-color: #f5f5f5;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 0;">
-    <tr>
-      <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+  const ctaColor = reminderNumber >= 3 ? BRAND_ORANGE : BRAND_GREEN
 
-          <!-- Header -->
-          <tr>
-            <td style="background-color: #2d6a4f; padding: 30px; text-align: center;">
-              <h1 style="color: #ffffff; font-family: Arial, sans-serif; margin: 0; font-size: 24px;">
-                NutriMercados
-              </h1>
-            </td>
-          </tr>
+  const itemsHtml = items.length > 0 ? `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0; border-collapse: collapse;">
+      <tr style="background-color: #f9fafb;">
+        <th style="padding: 10px 12px; text-align: left; font-family: ${FONT}; font-size: 12px; color: #6B7280; text-transform: uppercase; letter-spacing: 0.5px;"></th>
+        <th style="padding: 10px 12px; text-align: left; font-family: ${FONT}; font-size: 12px; color: #6B7280; text-transform: uppercase; letter-spacing: 0.5px;">Producto</th>
+        <th style="padding: 10px 12px; text-align: center; font-family: ${FONT}; font-size: 12px; color: #6B7280; text-transform: uppercase; letter-spacing: 0.5px;">Cant.</th>
+        <th style="padding: 10px 12px; text-align: right; font-family: ${FONT}; font-size: 12px; color: #6B7280; text-transform: uppercase; letter-spacing: 0.5px;">Precio</th>
+      </tr>
+      ${items.map((item) => `
+      <tr>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
+          ${item.thumbnail ? `<img src="${escapeHtml(item.thumbnail)}" alt="${escapeHtml(item.title ?? "")}" style="width: 56px; height: 56px; object-fit: cover; border-radius: 8px; border: 1px solid #e5e7eb;" />` : ""}
+        </td>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-family: ${FONT}; font-size: 14px; color: #1F2937;">
+          <strong>${escapeHtml(item.title || "Producto")}</strong>
+          ${item.variant_title ? `<br/><span style="color: #6B7280; font-size: 13px;">${escapeHtml(item.variant_title)}</span>` : ""}
+        </td>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center; font-family: ${FONT}; font-size: 14px; color: #4B5563;">
+          ${item.quantity || 1}
+        </td>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-family: ${FONT}; font-size: 14px; color: #1F2937;">
+          ${item.unit_price != null ? formatCOP(item.unit_price / 100) : ""}
+        </td>
+      </tr>`).join("")}
+    </table>` : ""
 
-          <!-- Body -->
-          <tr>
-            <td style="padding: 30px;">
-              <p style="font-family: Arial, sans-serif; font-size: 16px; color: #333; line-height: 1.6;">
-                ${greeting}
-              </p>
-              <p style="font-family: Arial, sans-serif; font-size: 16px; color: #333; line-height: 1.6;">
-                ${message.intro}
-              </p>
+  const content = `
+    <!-- Cart icon -->
+    <div style="text-align: center; margin-bottom: 20px;">
+      <div style="display: inline-block; background-color: ${reminderNumber >= 3 ? "#FEF3C7" : "#f0f7ec"}; border-radius: 50%; width: 64px; height: 64px; line-height: 64px; text-align: center;">
+        <span style="font-size: 28px;">${message.icon}</span>
+      </div>
+    </div>
 
-              ${
-                items.length > 0
-                  ? `
-              <!-- Items table -->
-              <table width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0; border-collapse: collapse;">
-                <tr style="background-color: #f9f9f9;">
-                  <th style="padding: 10px; text-align: left; font-family: Arial, sans-serif; font-size: 13px; color: #666;"></th>
-                  <th style="padding: 10px; text-align: left; font-family: Arial, sans-serif; font-size: 13px; color: #666;">Producto</th>
-                  <th style="padding: 10px; text-align: center; font-family: Arial, sans-serif; font-size: 13px; color: #666;">Cant.</th>
-                  <th style="padding: 10px; text-align: right; font-family: Arial, sans-serif; font-size: 13px; color: #666;">Precio</th>
-                </tr>
-                ${itemsHtml}
-              </table>
-              `
-                  : ""
-              }
+    ${sectionTitle(reminderNumber >= 3 ? "Ultima oportunidad" : "Tu carrito te espera")}
+    ${paragraph(greeting)}
+    ${paragraph(message.intro)}
 
-              <!-- CTA Button -->
-              <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
-                <tr>
-                  <td align="center">
-                    <a href="${recoveryUrl}" style="display: inline-block; background-color: #2d6a4f; color: #ffffff; font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; text-decoration: none; padding: 14px 40px; border-radius: 8px;">
-                      ${message.cta}
-                    </a>
-                  </td>
-                </tr>
-              </table>
+    ${itemsHtml}
 
-              <p style="font-family: Arial, sans-serif; font-size: 14px; color: #666; line-height: 1.6; text-align: center;">
-                Si tienes alguna pregunta, no dudes en contactarnos.
-              </p>
-            </td>
-          </tr>
+    ${ctaButton(recoveryUrl, message.cta, ctaColor)}
+    ${paragraph("Si tienes alguna pregunta, no dudes en contactarnos por WhatsApp o correo.", { muted: true, center: true, small: true })}`
 
-          <!-- Footer -->
-          <tr>
-            <td style="background-color: #f9f9f9; padding: 20px; text-align: center; border-top: 1px solid #eee;">
-              <p style="font-family: Arial, sans-serif; font-size: 12px; color: #999; margin: 0;">
-                NutriMercados &mdash; Tu tienda de productos saludables
-              </p>
-              <p style="font-family: Arial, sans-serif; font-size: 12px; color: #999; margin: 5px 0 0;">
-                Este es un correo automatizado. Si no creaste este carrito, puedes ignorar este mensaje.
-              </p>
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`
+  return emailWrapper(content, { preheader: message.preheader })
 }

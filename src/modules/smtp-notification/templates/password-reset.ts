@@ -1,4 +1,12 @@
-import { emailWrapper, escapeHtml, BRAND_COLOR } from "./shared"
+import {
+  emailWrapper,
+  escapeHtml,
+  ctaButton,
+  sectionTitle,
+  paragraph,
+  STORE_NAME,
+  BRAND_ORANGE,
+} from "./shared"
 
 type PasswordResetData = {
   url?: string
@@ -6,32 +14,35 @@ type PasswordResetData = {
 }
 
 export function passwordResetSubject(): string {
-  return "Restablecer tu contrasena - NutriMercados"
+  return `Restablecer tu contrasena - ${STORE_NAME}`
 }
 
 export function passwordResetTemplate(data: PasswordResetData): string {
   const resetUrl = data.url || "#"
 
-  return emailWrapper(`
-    <p style="font-family: Arial, sans-serif; font-size: 16px; color: #333; line-height: 1.6;">
-      Hola,
-    </p>
-    <p style="font-family: Arial, sans-serif; font-size: 16px; color: #333; line-height: 1.6;">
-      Recibimos una solicitud para restablecer la contrasena de tu cuenta. Haz clic en el boton a continuacion para crear una nueva contrasena.
-    </p>
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
-      <tr>
-        <td align="center">
-          <a href="${escapeHtml(resetUrl)}" style="display: inline-block; background-color: ${BRAND_COLOR}; color: #ffffff; font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; text-decoration: none; padding: 14px 40px; border-radius: 8px;">
-            Restablecer contrasena
-          </a>
-        </td>
-      </tr>
-    </table>
-    <p style="font-family: Arial, sans-serif; font-size: 14px; color: #666; line-height: 1.6; text-align: center;">
-      Si no solicitaste este cambio, puedes ignorar este mensaje. Tu contrasena no sera modificada.
-    </p>
-    <p style="font-family: Arial, sans-serif; font-size: 13px; color: #999; line-height: 1.6; text-align: center;">
-      Este enlace expira en 1 hora.
-    </p>`)
+  const content = `
+    <!-- Lock icon -->
+    <div style="text-align: center; margin-bottom: 20px;">
+      <div style="display: inline-block; background-color: #FEF3C7; border-radius: 50%; width: 64px; height: 64px; line-height: 64px; text-align: center;">
+        <span style="font-size: 28px;">&#128274;</span>
+      </div>
+    </div>
+
+    ${sectionTitle("Restablecer contrasena")}
+    ${paragraph("Hola,")}
+    ${paragraph("Recibimos una solicitud para restablecer la contrasena de tu cuenta en " + STORE_NAME + ". Haz clic en el boton para crear una nueva contrasena.")}
+
+    ${ctaButton(escapeHtml(resetUrl), "Restablecer contrasena", BRAND_ORANGE)}
+
+    <div style="background-color: #FEF3C7; border-radius: 8px; padding: 16px; margin: 20px 0; text-align: center;">
+      <p style="font-family: 'Inter', Arial, sans-serif; font-size: 13px; color: #92400E; margin: 0;">
+        Este enlace expira en 1 hora. Si no solicitaste este cambio, puedes ignorar este mensaje.
+      </p>
+    </div>
+
+    ${paragraph("Tu contrasena actual no sera modificada hasta que accedas al enlace y crees una nueva.", { muted: true, center: true, small: true })}`
+
+  return emailWrapper(content, {
+    preheader: `Solicitud de restablecimiento de contrasena — ${STORE_NAME}`,
+  })
 }

@@ -6,6 +6,8 @@ const STORE_EMAIL = "info@vitaintegral.co"
 const STORE_PHONE = "604 322 84 82 ext. 4"
 const STORE_WHATSAPP = "+573122018760"
 const STORE_ADDRESS = "Av. Nutibara Trv. 39B 77-40, Medellin"
+// Logo URL — set EMAIL_LOGO_URL env var after running upload-logo script
+const LOGO_URL = process.env.EMAIL_LOGO_URL || `${STORE_URL}/logo.png`
 
 export {
   BRAND_GREEN,
@@ -49,7 +51,7 @@ export function emailWrapper(content: string, options?: { preheader?: string }):
           <!-- Header with logo -->
           <tr>
             <td style="padding: 28px 32px 20px; text-align: center; background-color: #ffffff;">
-              <img src="${STORE_URL}/logo.png" alt="${STORE_NAME}" width="180" height="50" style="display: block; margin: 0 auto; width: 180px; height: 50px; max-width: 180px;" />
+              <img src="${LOGO_URL}" alt="${STORE_NAME}" width="180" height="50" style="display: block; margin: 0 auto; width: 180px; height: 50px; max-width: 180px;" />
             </td>
           </tr>
 

@@ -1,0 +1,53 @@
+import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
+import { Modules } from "@medusajs/framework/utils"
+import { notifyWithAudit } from "../utils/notify-with-audit"
+
+export default async function orderDeliveredHandler({
+  event: { data },
+  container,
+}: SubscriberArgs<{ id: string }>) {
+  try {
+    const fulfillmentService = container.resolve(Modules.FULFILLMENT) as any
+    const fulfillment = await fulfillmentService.retrieveFulfillment(data.id)
+
+    // Find the order linked to this fulfillment (same pattern as order-shipment-created)
+    const orderService = container.resolve(Modules.ORDER) as any
+
+    let order: any = null
+    try {
+      const orders = await orderService.listOrders(
+        { id: fulfillment.order_id },
+        { relations: ["shipping_address"] }
+      )
+      order = orders?.[0]
+    } catch {
+      return
+    }
+
+    if (!order?.email) return
+
+    await notifyWithAudit(container, {
+      to: order.email,
+      channel: "email",
+      template: "order-delivered",
+      data: {
+        order_id: order.id,
+        display_id: order.display_id,
+        customer_name: order.shipping_address
+          ? [
+              order.shipping_address.first_name,
+              order.shipping_address.last_name,
+            ]
+              .filter(Boolean)
+              .join(" ")
+          : "",
+      },
+    })
+  } catch (error) {
+    console.error("[Subscriber] Failed to send order delivered email:", error)
+  }
+}
+
+export const config: SubscriberConfig = {
+  event: "delivery.created",
+}

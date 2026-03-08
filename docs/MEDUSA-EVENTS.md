@@ -394,10 +394,14 @@ Special: `user.user.invite.token_generated` — emitted when invite token is gen
 
 | Event | Subscriber | Email Template | Recipient |
 |-------|-----------|---------------|-----------|
+| Event | Subscriber | Email Template | Recipient |
+|-------|-----------|---------------|-----------|
 | `customer.created` | `customer-created.ts` | `customer-welcome` | Customer |
 | `order.placed` | `order-placed.ts` | `order-placed` | Customer |
+| `payment.captured` | `payment-captured.ts` | `payment-captured` | Customer |
 | `order.fulfillment_created` | `order-fulfillment-created.ts` | `order-fulfillment` | Customer |
 | `shipment.created` | `order-shipment-created.ts` | `order-shipped` | Customer |
+| `delivery.created` | `order-delivered.ts` | `order-delivered` | Customer |
 | `order.canceled` | `order-canceled.ts` | `order-canceled` | Customer |
 | `auth.password_reset` | `password-reset.ts` | `password-reset` | Customer |
 | `invite.created` | `invite-created.ts` | `invite-user` | Admin |
@@ -412,7 +416,6 @@ Special: `user.user.invite.token_generated` — emitted when invite token is gen
 | Event | Use Case | Priority |
 |-------|----------|----------|
 | `payment.refunded` | Notify customer about refund | High |
-| `delivery.created` | Confirm delivery to customer | Medium |
 | `order.completed` | Thank-you / review request email | Medium |
 | `order.return_requested` | Confirm return request to customer | Medium |
 | `order.return_received` | Notify customer return was received | Medium |

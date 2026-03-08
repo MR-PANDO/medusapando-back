@@ -126,6 +126,44 @@ module.exports = defineConfig({
         ],
       },
     },
+    // Auth Module — Google + TikTok + Instagram providers
+    {
+      resolve: "@medusajs/medusa/auth",
+      options: {
+        providers: [
+          // Google (built-in)
+          {
+            resolve: "@medusajs/medusa/auth-google",
+            id: "google",
+            options: {
+              clientId: process.env.GOOGLE_CLIENT_ID,
+              clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+              callbackUrl: process.env.GOOGLE_CALLBACK_URL,
+            },
+          },
+          // TikTok (custom)
+          {
+            resolve: "./src/modules/auth-tiktok",
+            id: "tiktok",
+            options: {
+              clientKey: process.env.TIKTOK_CLIENT_KEY,
+              clientSecret: process.env.TIKTOK_CLIENT_SECRET,
+              callbackUrl: process.env.TIKTOK_CALLBACK_URL,
+            },
+          },
+          // Instagram via Facebook Login (custom)
+          {
+            resolve: "./src/modules/auth-instagram",
+            id: "instagram",
+            options: {
+              clientId: process.env.INSTAGRAM_CLIENT_ID,
+              clientSecret: process.env.INSTAGRAM_CLIENT_SECRET,
+              callbackUrl: process.env.INSTAGRAM_CALLBACK_URL,
+            },
+          },
+        ],
+      },
+    },
     // Meilisearch
     {
       resolve: "@rokmohar/medusa-plugin-meilisearch",

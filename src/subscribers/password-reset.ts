@@ -15,7 +15,7 @@ export default async function passwordResetHandler({
   try {
     const storefrontUrl =
       process.env.STOREFRONT_URL || "https://nutrimercados.com"
-    const resetUrl = `${storefrontUrl}/co/account/reset-password?token=${data.token}&email=${data.entity_id}`
+    const resetUrl = `${storefrontUrl}/co/reset-password?token=${data.token}&email=${encodeURIComponent(data.entity_id)}`
 
     await notifyWithAudit(container, {
       to: data.entity_id,

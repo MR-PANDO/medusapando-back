@@ -6,7 +6,7 @@ import { notifyManager } from "../utils/notify-manager"
 export default async function claimCreatedHandler({
   event: { data },
   container,
-}: SubscriberArgs<{ id: string; order_id: string }>) {
+}: SubscriberArgs<{ order_id: string; claim_id: string }>) {
   try {
     const orderService = container.resolve(Modules.ORDER) as any
     const order = await orderService.retrieveOrder(data.order_id, {

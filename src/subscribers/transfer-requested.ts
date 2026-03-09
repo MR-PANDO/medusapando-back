@@ -6,10 +6,10 @@ import { notifyManager } from "../utils/notify-manager"
 export default async function transferRequestedHandler({
   event: { data },
   container,
-}: SubscriberArgs<{ id: string; order_id: string }>) {
+}: SubscriberArgs<{ id: string; order_change_id: string }>) {
   try {
     const orderService = container.resolve(Modules.ORDER) as any
-    const order = await orderService.retrieveOrder(data.order_id, {
+    const order = await orderService.retrieveOrder(data.id, {
       relations: ["shipping_address"],
     })
 

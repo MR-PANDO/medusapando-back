@@ -5,7 +5,7 @@ import { notifyWithAudit } from "../utils/notify-with-audit"
 export default async function orderEditCanceledHandler({
   event: { data },
   container,
-}: SubscriberArgs<{ id: string; order_id: string }>) {
+}: SubscriberArgs<{ order_id: string; actions: any[] }>) {
   try {
     const orderService = container.resolve(Modules.ORDER) as any
     const order = await orderService.retrieveOrder(data.order_id, {

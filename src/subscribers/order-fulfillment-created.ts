@@ -7,7 +7,7 @@ export default async function orderFulfillmentCreatedHandler({
   event: { data },
   container,
 }: SubscriberArgs<{
-  id: string
+  order_id: string
   fulfillment_id: string
   no_notification?: boolean
 }>) {
@@ -15,7 +15,7 @@ export default async function orderFulfillmentCreatedHandler({
 
   try {
     const orderService = container.resolve(Modules.ORDER) as any
-    const order = await orderService.retrieveOrder(data.id, {
+    const order = await orderService.retrieveOrder(data.order_id, {
       relations: ["items", "shipping_address"],
     })
 

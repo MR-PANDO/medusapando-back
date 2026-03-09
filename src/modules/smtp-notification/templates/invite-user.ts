@@ -39,7 +39,7 @@ export function inviteUserTemplate(data: InviteUserData): string {
       </p>
     `)}
 
-    ${ctaButton(escapeHtml(inviteLink), "Aceptar invitacion")}
+    ${ctaButton(inviteLink, "Aceptar invitacion")}
     ${paragraph("Si no esperabas esta invitacion, puedes ignorar este mensaje.", { muted: true, center: true, small: true })}`
 
   return emailWrapper(content, {

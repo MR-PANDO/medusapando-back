@@ -65,7 +65,7 @@ export function orderShippedTemplate(data: OrderShippedData): string {
 
     ${trackingHtml}
 
-    ${ctaButton(escapeHtml(trackingBtnUrl), trackingBtnLabel)}
+    ${ctaButton(trackingBtnUrl, trackingBtnLabel)}
     ${paragraph("Si tienes alguna pregunta sobre tu envio, no dudes en contactarnos.", { muted: true, center: true, small: true })}`
 
   return emailWrapper(content, {

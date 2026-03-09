@@ -32,7 +32,7 @@ export function passwordResetTemplate(data: PasswordResetData): string {
     ${paragraph("Hola,")}
     ${paragraph("Recibimos una solicitud para restablecer la contrasena de tu cuenta en " + STORE_NAME + ". Haz clic en el boton para crear una nueva contrasena.")}
 
-    ${ctaButton(escapeHtml(resetUrl), "Restablecer contrasena", BRAND_ORANGE)}
+    ${ctaButton(resetUrl, "Restablecer contrasena", BRAND_ORANGE)}
 
     <div style="background-color: #FEF3C7; border-radius: 8px; padding: 16px; margin: 20px 0; text-align: center;">
       <p style="font-family: 'Inter', Arial, sans-serif; font-size: 13px; color: #92400E; margin: 0;">

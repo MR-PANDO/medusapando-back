@@ -126,53 +126,53 @@ module.exports = defineConfig({
         ],
       },
     },
-    // Auth Module — Social login providers (only registered when env vars are set)
-    ...((() => {
-      const authProviders: any[] = []
-
-      if (process.env.GOOGLE_CLIENT_ID) {
-        authProviders.push({
-          resolve: "@medusajs/medusa/auth-google",
-          id: "google",
-          options: {
-            clientId: process.env.GOOGLE_CLIENT_ID,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-            callbackUrl: process.env.GOOGLE_CALLBACK_URL,
+    // Auth Module — emailpass (always) + social providers (when env vars are set)
+    {
+      resolve: "@medusajs/medusa/auth",
+      options: {
+        providers: [
+          // emailpass is Medusa's default — must always be included when overriding the auth module
+          {
+            resolve: "@medusajs/medusa/auth-emailpass",
+            id: "emailpass",
           },
-        })
-      }
-
-      if (process.env.TIKTOK_CLIENT_KEY) {
-        authProviders.push({
-          resolve: "./src/modules/auth-tiktok",
-          id: "tiktok",
-          options: {
-            clientKey: process.env.TIKTOK_CLIENT_KEY,
-            clientSecret: process.env.TIKTOK_CLIENT_SECRET,
-            callbackUrl: process.env.TIKTOK_CALLBACK_URL,
-          },
-        })
-      }
-
-      if (process.env.INSTAGRAM_CLIENT_ID) {
-        authProviders.push({
-          resolve: "./src/modules/auth-instagram",
-          id: "instagram",
-          options: {
-            clientId: process.env.INSTAGRAM_CLIENT_ID,
-            clientSecret: process.env.INSTAGRAM_CLIENT_SECRET,
-            callbackUrl: process.env.INSTAGRAM_CALLBACK_URL,
-          },
-        })
-      }
-
-      if (authProviders.length === 0) return []
-
-      return [{
-        resolve: "@medusajs/medusa/auth",
-        options: { providers: authProviders },
-      }]
-    })()),
+          // Social providers — only added when credentials are configured
+          ...(process.env.GOOGLE_CLIENT_ID
+            ? [{
+                resolve: "@medusajs/medusa/auth-google",
+                id: "google",
+                options: {
+                  clientId: process.env.GOOGLE_CLIENT_ID,
+                  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+                  callbackUrl: process.env.GOOGLE_CALLBACK_URL,
+                },
+              }]
+            : []),
+          ...(process.env.TIKTOK_CLIENT_KEY
+            ? [{
+                resolve: "./src/modules/auth-tiktok",
+                id: "tiktok",
+                options: {
+                  clientKey: process.env.TIKTOK_CLIENT_KEY,
+                  clientSecret: process.env.TIKTOK_CLIENT_SECRET,
+                  callbackUrl: process.env.TIKTOK_CALLBACK_URL,
+                },
+              }]
+            : []),
+          ...(process.env.INSTAGRAM_CLIENT_ID
+            ? [{
+                resolve: "./src/modules/auth-instagram",
+                id: "instagram",
+                options: {
+                  clientId: process.env.INSTAGRAM_CLIENT_ID,
+                  clientSecret: process.env.INSTAGRAM_CLIENT_SECRET,
+                  callbackUrl: process.env.INSTAGRAM_CALLBACK_URL,
+                },
+              }]
+            : []),
+        ],
+      },
+    },
     // Meilisearch
     {
       resolve: "@rokmohar/medusa-plugin-meilisearch",

@@ -62,6 +62,7 @@ class EmailAuditModuleService extends MedusaService({
     user: string
     pass: string
     from: string
+    manager_email: string | null
   } | null> {
     const [records] = await this.listAndCountSmtpSettings(
       {},
@@ -76,7 +77,13 @@ class EmailAuditModuleService extends MedusaService({
       user: r.user,
       pass: r.pass,
       from: r.from,
+      manager_email: r.manager_email ?? null,
     }
+  }
+
+  async getManagerEmail(): Promise<string | null> {
+    const settings = await this.getSmtpSettings()
+    return settings?.manager_email || null
   }
 
   async upsertSmtpSettings(data: {
@@ -86,6 +93,7 @@ class EmailAuditModuleService extends MedusaService({
     user: string
     pass: string
     from: string
+    manager_email?: string | null
   }) {
     const [existing] = await this.listAndCountSmtpSettings({}, { take: 1 })
     if (existing.length > 0) {

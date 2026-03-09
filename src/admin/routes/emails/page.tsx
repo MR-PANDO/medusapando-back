@@ -23,6 +23,7 @@ type SmtpSettingsData = {
   user: string
   pass: string
   from: string
+  manager_email: string
 }
 
 const STATUS_COLORS: Record<string, "green" | "red" | "orange" | "grey"> = {
@@ -40,11 +41,25 @@ const STATUS_LABELS: Record<string, string> = {
 const TYPE_LABELS: Record<string, string> = {
   "payment-link": "Link de pago",
   "payment-status": "Estado de pago",
+  "payment-captured": "Pago capturado",
+  "payment-customer": "Notificacion de pago",
   "abandoned-cart": "Carrito abandonado",
   "order-placed": "Confirmacion de pedido",
   "order-shipped": "Pedido enviado",
   "order-canceled": "Pedido cancelado",
+  "order-fulfillment": "Pedido preparado",
+  "order-delivered": "Pedido entregado",
   "order-refund": "Reembolso",
+  "order-edit-requested": "Modificacion solicitada",
+  "order-edit-confirmed": "Modificacion confirmada",
+  "order-edit-canceled": "Modificacion cancelada",
+  "return-requested": "Devolucion solicitada",
+  "return-received": "Devolucion recibida",
+  "claim-created": "Reclamo",
+  "exchange-created": "Cambio",
+  "transfer-requested": "Transferencia",
+  "fulfillment-canceled": "Envio cancelado",
+  "manager-order-alert": "Alerta admin",
   "customer-welcome": "Bienvenida",
   "password-reset": "Restablecer contrasena",
   "invite-user": "Invitacion de usuario",
@@ -67,6 +82,7 @@ function SmtpSettingsPanel() {
     user: "",
     pass: "",
     from: "",
+    manager_email: "",
   })
   const [editing, setEditing] = useState(false)
   const [loaded, setLoaded] = useState(false)
@@ -265,7 +281,7 @@ function SmtpSettingsPanel() {
               disabled={!editing}
             />
           </div>
-          <div className="col-span-2">
+          <div>
             <Label htmlFor="smtp-from">
               Remitente (From)
             </Label>
@@ -278,6 +294,23 @@ function SmtpSettingsPanel() {
               }
               disabled={!editing}
             />
+          </div>
+          <div>
+            <Label htmlFor="smtp-manager-email">
+              Email del administrador
+            </Label>
+            <Input
+              id="smtp-manager-email"
+              placeholder="admin@tutienda.com"
+              value={settings.manager_email}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, manager_email: e.target.value }))
+              }
+              disabled={!editing}
+            />
+            <Text className="text-ui-fg-muted text-xs mt-1">
+              Recibe notificaciones de pedidos, devoluciones y reclamos
+            </Text>
           </div>
         </div>
         {!loaded && !editing && (

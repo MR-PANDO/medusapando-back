@@ -16,7 +16,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const service = req.scope.resolve(EMAIL_AUDIT_MODULE) as EmailAuditModuleService
-  const { host, port, secure, user, pass, from } = req.body as any
+  const { host, port, secure, user, pass, from, manager_email } = req.body as any
 
   if (!host || !user || !pass || !from) {
     res.status(400).json({ error: "host, user, pass, and from are required" })
@@ -30,6 +30,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     user,
     pass,
     from,
+    manager_email: manager_email || null,
   })
 
   res.json({ success: true })

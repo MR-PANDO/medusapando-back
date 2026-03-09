@@ -8,4 +8,5 @@ export const SmtpSettings = model.define("smtp_settings", {
   user: model.text(),
   pass: model.text(),
   from: model.text(),
+  manager_email: model.text().nullable(),
 })

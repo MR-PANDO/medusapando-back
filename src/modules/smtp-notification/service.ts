@@ -47,6 +47,46 @@ import {
   orderDeliveredTemplate,
   orderDeliveredSubject,
 } from "./templates/order-delivered"
+import {
+  managerOrderAlertTemplate,
+  managerOrderAlertSubject,
+} from "./templates/manager-order-alert"
+import {
+  orderEditRequestedTemplate,
+  orderEditRequestedSubject,
+} from "./templates/order-edit-requested"
+import {
+  orderEditConfirmedTemplate,
+  orderEditConfirmedSubject,
+} from "./templates/order-edit-confirmed"
+import {
+  orderEditCanceledTemplate,
+  orderEditCanceledSubject,
+} from "./templates/order-edit-canceled"
+import {
+  returnRequestedTemplate,
+  returnRequestedSubject,
+} from "./templates/return-requested"
+import {
+  returnReceivedTemplate,
+  returnReceivedSubject,
+} from "./templates/return-received"
+import {
+  claimCreatedTemplate,
+  claimCreatedSubject,
+} from "./templates/claim-created"
+import {
+  exchangeCreatedTemplate,
+  exchangeCreatedSubject,
+} from "./templates/exchange-created"
+import {
+  transferRequestedTemplate,
+  transferRequestedSubject,
+} from "./templates/transfer-requested"
+import {
+  fulfillmentCanceledTemplate,
+  fulfillmentCanceledSubject,
+} from "./templates/fulfillment-canceled"
 
 type SmtpOptions = {
   host: string
@@ -224,6 +264,46 @@ class SmtpNotificationService extends AbstractNotificationProviderService {
       case "order-delivered":
         subject = orderDeliveredSubject(templateData)
         html = orderDeliveredTemplate(templateData)
+        break
+      case "manager-order-alert":
+        subject = managerOrderAlertSubject(templateData)
+        html = managerOrderAlertTemplate(templateData)
+        break
+      case "order-edit-requested":
+        subject = orderEditRequestedSubject(templateData)
+        html = orderEditRequestedTemplate(templateData)
+        break
+      case "order-edit-confirmed":
+        subject = orderEditConfirmedSubject(templateData)
+        html = orderEditConfirmedTemplate(templateData)
+        break
+      case "order-edit-canceled":
+        subject = orderEditCanceledSubject(templateData)
+        html = orderEditCanceledTemplate(templateData)
+        break
+      case "return-requested":
+        subject = returnRequestedSubject(templateData)
+        html = returnRequestedTemplate(templateData)
+        break
+      case "return-received":
+        subject = returnReceivedSubject(templateData)
+        html = returnReceivedTemplate(templateData)
+        break
+      case "claim-created":
+        subject = claimCreatedSubject(templateData)
+        html = claimCreatedTemplate(templateData)
+        break
+      case "exchange-created":
+        subject = exchangeCreatedSubject(templateData)
+        html = exchangeCreatedTemplate(templateData)
+        break
+      case "transfer-requested":
+        subject = transferRequestedSubject(templateData)
+        html = transferRequestedTemplate(templateData)
+        break
+      case "fulfillment-canceled":
+        subject = fulfillmentCanceledSubject(templateData)
+        html = fulfillmentCanceledTemplate(templateData)
         break
       default:
         throw new MedusaError(

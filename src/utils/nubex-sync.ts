@@ -159,55 +159,47 @@ export async function runNubexSync(
         const inventoryService = container.resolve(Modules.INVENTORY) as any
         const linkService = container.resolve(ContainerRegistrationKeys.LINK) as any
 
-        const SETUP_BATCH = 50
-        for (let i = 0; i < variantsNeedingInventory.length; i += SETUP_BATCH) {
-          const batch = variantsNeedingInventory.slice(i, i + SETUP_BATCH)
+        for (const v of variantsNeedingInventory) {
           try {
-            // a. Enable manage_inventory on these variants
-            await productService.updateProductVariants(
-              batch.map((v) => ({ id: v.variantId, manage_inventory: true }))
-            )
-
-            // b. Create inventory items
-            const inventoryItems = await inventoryService.createInventoryItems(
-              batch.map((v) => ({
-                sku: v.sku,
-                requires_shipping: true,
-              }))
-            )
-
-            // c. Link inventory items to variants
-            const links = batch.map((v, idx) => ({
-              [Modules.PRODUCT]: { product_variant_id: v.variantId },
-              [Modules.INVENTORY]: { inventory_item_id: inventoryItems[idx].id },
-            }))
-            await linkService.create(links)
-
-            // d. Create inventory levels at the stock location
-            const erpQuantities = batch.map((v) => {
-              const erp = erpMap.get(v.sku)
-              return Math.max(0, Math.floor(erp?.cantidad ?? 0))
+            // a. Enable manage_inventory on this variant
+            await productService.updateProductVariants(v.variantId, {
+              manage_inventory: true,
             })
-            await inventoryService.createInventoryLevels(
-              inventoryItems.map((item: any, idx: number) => ({
-                inventory_item_id: item.id,
-                location_id: defaultLocationId,
-                stocked_quantity: erpQuantities[idx],
-              }))
-            )
 
-            result.inventory_created += batch.length
-            console.log(
-              `[NubexSync] Inventory setup batch ${i}-${i + batch.length}: OK`
-            )
+            // b. Create inventory item
+            const [inventoryItem] = await inventoryService.createInventoryItems([{
+              sku: v.sku,
+              requires_shipping: true,
+            }])
+
+            // c. Link inventory item to variant
+            await linkService.create({
+              [Modules.PRODUCT]: { product_variant_id: v.variantId },
+              [Modules.INVENTORY]: { inventory_item_id: inventoryItem.id },
+            })
+
+            // d. Create inventory level at the stock location
+            const erp = erpMap.get(v.sku)
+            const qty = Math.max(0, Math.floor(erp?.cantidad ?? 0))
+            await inventoryService.createInventoryLevels([{
+              inventory_item_id: inventoryItem.id,
+              location_id: defaultLocationId,
+              stocked_quantity: qty,
+            }])
+
+            result.inventory_created++
           } catch (err: any) {
-            result.errors += batch.length
+            result.errors++
             errorLines.push(
-              `Inventory setup batch ${i}-${i + batch.length}: ${err.message}`
+              `Inventory setup SKU ${v.sku}: ${err.message}`
             )
-            console.error(`[NubexSync] Inventory setup batch error:`, err.message)
+            console.error(`[NubexSync] Inventory setup error for SKU ${v.sku}:`, err.message)
           }
         }
+
+        console.log(
+          `[NubexSync] Inventory setup done: ${result.inventory_created} created, ${result.errors} errors`
+        )
       }
     }
 

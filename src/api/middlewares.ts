@@ -15,9 +15,16 @@ import {
   PostAdminCreateTranslation,
   PostAdminBatchTranslations,
 } from "./admin/translations/validators"
+import { skuSearchMiddleware } from "./middlewares/sku-search"
 
 export default defineMiddlewares({
   routes: [
+    // SKU search middleware for admin product list
+    {
+      matcher: "/admin/products",
+      method: "GET",
+      middlewares: [skuSearchMiddleware],
+    },
     // Brand validation middlewares
     {
       matcher: "/admin/brands",

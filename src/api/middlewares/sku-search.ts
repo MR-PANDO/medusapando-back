@@ -7,15 +7,16 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 /**
  * Middleware that extends admin product search to also match variant SKUs.
- * When `q` is present, it searches both product titles and variant SKUs,
- * then combines results using an `id` filter.
+ * Runs AFTER validateAndTransformQuery, so it modifies req.filterableFields
+ * (not req.query) to inject product IDs matched by SKU.
  */
 export async function skuSearchMiddleware(
   req: MedusaRequest,
   res: MedusaResponse,
   next: MedusaNextFunction
 ) {
-  const q = (req.query.q as string | undefined)?.trim()
+  const filterableFields = (req as any).filterableFields
+  const q = (filterableFields?.q as string | undefined)?.trim()
   if (!q || q.length < 1) return next()
 
   console.log("[SKU Search] Searching for:", q)
@@ -30,9 +31,22 @@ export async function skuSearchMiddleware(
       filters: { sku: { $ilike: `%${q}%` } },
     })
 
-    console.log("[SKU Search] Variant matches:", variants.length)
+    console.log("[SKU Search] Variant SKU matches:", variants.length)
 
-    // Also search products by title
+    if (variants.length === 0) {
+      // No SKU matches — let the default q search handle it
+      return next()
+    }
+
+    const skuProductIds = [
+      ...new Set(
+        variants
+          .map((v: any) => v.product?.id)
+          .filter(Boolean)
+      ),
+    ] as string[]
+
+    // Also search products by title/handle so we merge both result sets
     const { data: titleProducts } = await query.graph({
       entity: "product",
       fields: ["id"],
@@ -45,30 +59,27 @@ export async function skuSearchMiddleware(
       filters: { handle: { $ilike: `%${q}%` } },
     })
 
-    const skuProductIds = variants
-      .map((v: any) => v.product?.id)
-      .filter(Boolean)
-
     const titleProductIds = [
       ...titleProducts.map((p: any) => p.id),
       ...handleProducts.map((p: any) => p.id),
     ]
 
-    // Merge both sets
     const allIds = [...new Set([...skuProductIds, ...titleProductIds])]
 
-    console.log("[SKU Search] Total product IDs found:", allIds.length, "SKU:", skuProductIds.length, "Title:", titleProducts.length, "Handle:", handleProducts.length)
+    console.log(
+      "[SKU Search] Found products — SKU:", skuProductIds.length,
+      "Title:", titleProducts.length,
+      "Handle:", handleProducts.length,
+      "Total unique:", allIds.length
+    )
 
     if (allIds.length > 0) {
-      // Replace q with id filter so both SKU and title matches appear
-      req.query.id = allIds
-      delete req.query.q
+      // Replace q with id filter on filterableFields (already validated)
+      filterableFields.id = allIds
+      delete filterableFields.q
       console.log("[SKU Search] Replaced q with", allIds.length, "product IDs")
-    } else {
-      console.log("[SKU Search] No matches found, letting default q handler proceed")
     }
   } catch (err: any) {
-    // If SKU search fails, let the normal q handler proceed
     console.warn("[SKU Search] Middleware error:", err.message)
   }
 

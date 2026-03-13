@@ -174,7 +174,7 @@ export async function runNubexSync(
 
             // c. Link inventory item to variant
             await linkService.create({
-              [Modules.PRODUCT]: { product_variant_id: v.variantId },
+              [Modules.PRODUCT]: { variant_id: v.variantId },
               [Modules.INVENTORY]: { inventory_item_id: inventoryItem.id },
             })
 

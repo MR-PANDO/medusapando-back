@@ -9,6 +9,8 @@ export const NubexSyncLog = model.define("nubex_sync_log", {
   prices_updated: model.number().default(0),
   inventory_updated: model.number().default(0),
   inventory_created: model.number().default(0),
+  products_published: model.number().default(0),
+  products_unpublished: model.number().default(0),
   errors: model.number().default(0),
   error_details: model.text().nullable(),
   duration_ms: model.number().default(0),

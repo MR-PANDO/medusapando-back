@@ -12,6 +12,8 @@ type SyncLog = {
   prices_updated: number
   inventory_updated: number
   inventory_created: number
+  products_published: number
+  products_unpublished: number
   errors: number
   error_details: string | null
   duration_ms: number
@@ -45,7 +47,7 @@ const STATUS_LABELS: Record<string, string> = {
   running: "En proceso",
 }
 
-const COL_COUNT = 10
+const COL_COUNT = 12
 
 const SyncLogRow = ({ log }: { log: SyncLog }) => {
   const [expanded, setExpanded] = useState(false)
@@ -80,6 +82,16 @@ const SyncLogRow = ({ log }: { log: SyncLog }) => {
         <td className="px-4 py-3">{log.prices_updated}</td>
         <td className="px-4 py-3">{log.inventory_created}</td>
         <td className="px-4 py-3">{log.inventory_updated}</td>
+        <td className="px-4 py-3">
+          {log.products_published > 0 ? (
+            <span className="text-green-600 font-medium">{log.products_published}</span>
+          ) : "0"}
+        </td>
+        <td className="px-4 py-3">
+          {log.products_unpublished > 0 ? (
+            <span className="text-orange-600 font-medium">{log.products_unpublished}</span>
+          ) : "0"}
+        </td>
         <td className="px-4 py-3">
           {log.errors > 0 ? (
             <span className="text-ui-fg-error font-medium">{log.errors}</span>
@@ -207,6 +219,7 @@ const NubexPage = () => {
         const r = data.result
         setSyncResult(
           `Sincronizados: ${r.prices_updated} precios, ${r.inventory_created} inv. creados, ${r.inventory_updated} inv. actualizados. ` +
+            `Publicados: ${r.products_published}, Despublicados: ${r.products_unpublished}. ` +
             `SKUs coincidentes: ${r.matched_skus}/${r.total_erp_products}. ` +
             `Errores: ${r.errors}. Duracion: ${formatDuration(r.duration_ms)}`
         )
@@ -369,6 +382,8 @@ const NubexPage = () => {
                   <th className="px-4 py-3">Precios</th>
                   <th className="px-4 py-3">Inv. creados</th>
                   <th className="px-4 py-3">Inv. actualizados</th>
+                  <th className="px-4 py-3">Publicados</th>
+                  <th className="px-4 py-3">Despublicados</th>
                   <th className="px-4 py-3">Errores</th>
                   <th className="px-4 py-3">Duracion</th>
                 </tr>

@@ -12,6 +12,8 @@ type SyncResult = {
   inventory_updated: number
   inventory_created: number
   skipped_no_inventory: number
+  products_published: number
+  products_unpublished: number
   errors: number
   error_details: string | null
   duration_ms: number
@@ -48,6 +50,8 @@ export async function runNubexSync(
     prices_updated: 0,
     inventory_updated: 0,
     inventory_created: 0,
+    products_published: 0,
+    products_unpublished: 0,
     errors: 0,
   })
 
@@ -58,6 +62,8 @@ export async function runNubexSync(
     inventory_updated: 0,
     inventory_created: 0,
     skipped_no_inventory: 0,
+    products_published: 0,
+    products_unpublished: 0,
     errors: 0,
     error_details: null,
     duration_ms: 0,
@@ -86,13 +92,13 @@ export async function runNubexSync(
     console.log("[NubexSync] Querying Medusa variants...")
     const { data: variants } = await query.graph({
       entity: "product_variant",
-      fields: ["id", "sku", "manage_inventory"],
+      fields: ["id", "sku", "manage_inventory", "product.id"],
     })
 
     console.log(`[NubexSync] Got ${variants.length} Medusa variants`)
 
     // 3. Match SKUs and collect matched variant IDs
-    const matchedVariants: Array<{ variantId: string; sku: string }> = []
+    const matchedVariants: Array<{ variantId: string; sku: string; productId: string }> = []
     const priceUpdates: Array<{
       id: string
       prices: Array<{ amount: number; currency_code: string }>
@@ -104,7 +110,11 @@ export async function runNubexSync(
       if (!erpProduct) continue
 
       result.matched_skus++
-      matchedVariants.push({ variantId: variant.id, sku: variant.sku })
+      matchedVariants.push({
+        variantId: variant.id,
+        sku: variant.sku,
+        productId: variant.product?.id,
+      })
 
       // Price update — COP amount (Nubex stores in full units, Medusa too for COP)
       if (erpProduct.precio > 0) {
@@ -371,6 +381,80 @@ export async function runNubexSync(
       }
     }
 
+    // 8. Publish/unpublish products based on ERP stock
+    if (matchedVariants.length > 0) {
+      const productService = container.resolve(Modules.PRODUCT) as any
+
+      // Group variants by product and check if any variant has stock
+      const productStockMap = new Map<string, boolean>()
+      for (const mv of matchedVariants) {
+        if (!mv.productId) continue
+        const erp = erpMap.get(mv.sku)
+        const qty = Math.max(0, Math.floor(erp?.cantidad ?? 0))
+        const hasStock = qty > 0
+
+        // Product has stock if ANY variant has stock
+        if (hasStock) {
+          productStockMap.set(mv.productId, true)
+        } else if (!productStockMap.has(mv.productId)) {
+          productStockMap.set(mv.productId, false)
+        }
+      }
+
+      // Get current product statuses to avoid unnecessary updates
+      const productIds = [...productStockMap.keys()]
+      const { data: products } = await query.graph({
+        entity: "product",
+        fields: ["id", "status"],
+        filters: { id: productIds },
+      })
+
+      const currentStatusMap = new Map<string, string>()
+      for (const p of products) {
+        currentStatusMap.set(p.id, p.status)
+      }
+
+      const toPublish: string[] = []
+      const toUnpublish: string[] = []
+
+      for (const [productId, hasStock] of productStockMap) {
+        const currentStatus = currentStatusMap.get(productId)
+        if (hasStock && currentStatus !== "published") {
+          toPublish.push(productId)
+        } else if (!hasStock && currentStatus === "published") {
+          toUnpublish.push(productId)
+        }
+      }
+
+      // Publish products with stock
+      for (const id of toPublish) {
+        try {
+          await productService.updateProducts(id, { status: "published" })
+          result.products_published++
+        } catch (err: any) {
+          result.errors++
+          errorLines.push(`Publish product ${id}: ${err.message}`)
+          console.error(`[NubexSync] Publish error for product ${id}:`, err.message)
+        }
+      }
+
+      // Unpublish products without stock
+      for (const id of toUnpublish) {
+        try {
+          await productService.updateProducts(id, { status: "draft" })
+          result.products_unpublished++
+        } catch (err: any) {
+          result.errors++
+          errorLines.push(`Unpublish product ${id}: ${err.message}`)
+          console.error(`[NubexSync] Unpublish error for product ${id}:`, err.message)
+        }
+      }
+
+      console.log(
+        `[NubexSync] Status updates: ${result.products_published} published, ${result.products_unpublished} unpublished`
+      )
+    }
+
     result.duration_ms = Date.now() - startTime
     result.error_details =
       errorLines.length > 0 ? errorLines.join("\n") : null
@@ -383,7 +467,7 @@ export async function runNubexSync(
     )
 
     console.log(
-      `[NubexSync] Completed in ${result.duration_ms}ms. Prices: ${result.prices_updated}, Inventory created: ${result.inventory_created}, updated: ${result.inventory_updated}, Errors: ${result.errors}`
+      `[NubexSync] Completed in ${result.duration_ms}ms. Prices: ${result.prices_updated}, Inventory created: ${result.inventory_created}, updated: ${result.inventory_updated}, Published: ${result.products_published}, Unpublished: ${result.products_unpublished}, Errors: ${result.errors}`
     )
 
     return result
@@ -417,6 +501,8 @@ async function finishLog(
     prices_updated: result.prices_updated,
     inventory_updated: result.inventory_updated,
     inventory_created: result.inventory_created,
+    products_published: result.products_published,
+    products_unpublished: result.products_unpublished,
     errors: result.errors,
     error_details: result.error_details,
     duration_ms: result.duration_ms,

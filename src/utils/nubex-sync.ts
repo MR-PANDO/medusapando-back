@@ -726,6 +726,21 @@ export async function runNubexSync(
       `[NubexSync] Completed in ${result.duration_ms}ms. Prices: ${result.prices_updated}, Inventory created: ${result.inventory_created}, updated: ${result.inventory_updated}, Published: ${result.products_published}, Unpublished: ${result.products_unpublished}, Changes tracked: ${changedEntries.length}, Errors: ${result.errors}`
     )
 
+    // 11. Revalidate frontend cache so changes show immediately
+    if (changedEntries.length > 0) {
+      const storefrontUrl = process.env.STOREFRONT_URL
+      if (storefrontUrl) {
+        try {
+          await fetch(`${storefrontUrl}/api/revalidate?tags=products`, {
+            method: "GET",
+          })
+          console.log("[NubexSync] Frontend cache revalidated")
+        } catch (err: any) {
+          console.warn(`[NubexSync] Cache revalidation failed: ${err.message}`)
+        }
+      }
+    }
+
     return result
   } catch (err: any) {
     result.duration_ms = Date.now() - startTime

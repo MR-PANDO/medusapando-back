@@ -15,8 +15,10 @@ export async function skuSearchMiddleware(
   res: MedusaResponse,
   next: MedusaNextFunction
 ) {
-  const q = req.query.q as string | undefined
+  const q = (req.query.q as string | undefined)?.trim()
   if (!q || q.length < 1) return next()
+
+  console.log("[SKU Search] Searching for:", q)
 
   try {
     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
@@ -28,20 +30,9 @@ export async function skuSearchMiddleware(
       filters: { sku: { $ilike: `%${q}%` } },
     })
 
-    if (variants.length === 0) {
-      // No SKU matches — let the default q search handle it
-      return next()
-    }
+    console.log("[SKU Search] Variant matches:", variants.length)
 
-    const skuProductIds = [
-      ...new Set(
-        variants
-          .map((v: any) => v.product?.id)
-          .filter(Boolean)
-      ),
-    ] as string[]
-
-    // Also search products by title so we keep OR semantics
+    // Also search products by title
     const { data: titleProducts } = await query.graph({
       entity: "product",
       fields: ["id"],
@@ -54,6 +45,10 @@ export async function skuSearchMiddleware(
       filters: { handle: { $ilike: `%${q}%` } },
     })
 
+    const skuProductIds = variants
+      .map((v: any) => v.product?.id)
+      .filter(Boolean)
+
     const titleProductIds = [
       ...titleProducts.map((p: any) => p.id),
       ...handleProducts.map((p: any) => p.id),
@@ -62,10 +57,15 @@ export async function skuSearchMiddleware(
     // Merge both sets
     const allIds = [...new Set([...skuProductIds, ...titleProductIds])]
 
+    console.log("[SKU Search] Total product IDs found:", allIds.length, "SKU:", skuProductIds.length, "Title:", titleProducts.length, "Handle:", handleProducts.length)
+
     if (allIds.length > 0) {
       // Replace q with id filter so both SKU and title matches appear
       req.query.id = allIds
       delete req.query.q
+      console.log("[SKU Search] Replaced q with", allIds.length, "product IDs")
+    } else {
+      console.log("[SKU Search] No matches found, letting default q handler proceed")
     }
   } catch (err: any) {
     // If SKU search fails, let the normal q handler proceed

@@ -166,11 +166,21 @@ export async function runNubexSync(
               manage_inventory: true,
             })
 
-            // b. Create inventory item
-            const [inventoryItem] = await inventoryService.createInventoryItems([{
-              sku: v.sku,
-              requires_shipping: true,
-            }])
+            // b. Find existing or create inventory item
+            let inventoryItem: any
+            const existing = await inventoryService.listInventoryItems(
+              { sku: v.sku },
+              { take: 1 }
+            )
+            if (existing.length > 0) {
+              inventoryItem = existing[0]
+            } else {
+              const [created] = await inventoryService.createInventoryItems([{
+                sku: v.sku,
+                requires_shipping: true,
+              }])
+              inventoryItem = created
+            }
 
             // c. Link inventory item to variant
             await linkService.create({
@@ -178,14 +188,26 @@ export async function runNubexSync(
               [Modules.INVENTORY]: { inventory_item_id: inventoryItem.id },
             })
 
-            // d. Create inventory level at the stock location
+            // d. Create inventory level at the stock location (if not exists)
             const erp = erpMap.get(v.sku)
             const qty = Math.max(0, Math.floor(erp?.cantidad ?? 0))
-            await inventoryService.createInventoryLevels([{
+            const existingLevels = await inventoryService.listInventoryLevels({
               inventory_item_id: inventoryItem.id,
               location_id: defaultLocationId,
-              stocked_quantity: qty,
-            }])
+            })
+            if (existingLevels.length === 0) {
+              await inventoryService.createInventoryLevels([{
+                inventory_item_id: inventoryItem.id,
+                location_id: defaultLocationId,
+                stocked_quantity: qty,
+              }])
+            } else {
+              await inventoryService.updateInventoryLevels([{
+                inventory_item_id: inventoryItem.id,
+                location_id: defaultLocationId,
+                stocked_quantity: qty,
+              }])
+            }
 
             result.inventory_created++
           } catch (err: any) {

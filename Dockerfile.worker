@@ -13,8 +13,9 @@ COPY . .
 # Remove node_modules if exists
 RUN rm -rf node_modules
 
-# Install dependencies
-RUN npm ci --legacy-peer-deps
+# Install ALL dependencies (including devDependencies needed for build)
+# NODE_ENV must not be "production" here, or npm skips devDependencies like typescript
+RUN NODE_ENV=development npm ci --legacy-peer-deps
 
 # Set dummy env vars for build
 ENV DATABASE_URL=postgres://localhost:5432/medusa \

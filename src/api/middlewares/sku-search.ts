@@ -45,15 +45,19 @@ export async function skuSearchMiddleware(
     const { data: titleProducts } = await query.graph({
       entity: "product",
       fields: ["id"],
-      filters: {
-        $or: [
-          { title: { $ilike: `%${q}%` } },
-          { handle: { $ilike: `%${q}%` } },
-        ],
-      },
+      filters: { title: { $ilike: `%${q}%` } },
     })
 
-    const titleProductIds = titleProducts.map((p: any) => p.id)
+    const { data: handleProducts } = await query.graph({
+      entity: "product",
+      fields: ["id"],
+      filters: { handle: { $ilike: `%${q}%` } },
+    })
+
+    const titleProductIds = [
+      ...titleProducts.map((p: any) => p.id),
+      ...handleProducts.map((p: any) => p.id),
+    ]
 
     // Merge both sets
     const allIds = [...new Set([...skuProductIds, ...titleProductIds])]

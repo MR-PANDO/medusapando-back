@@ -59,6 +59,10 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/wompi",
     },
+    // Nubex ERP Module - price and inventory sync
+    {
+      resolve: "./src/modules/nubex",
+    },
     // Payment Module with Wompi provider
     {
       resolve: "@medusajs/medusa/payment",

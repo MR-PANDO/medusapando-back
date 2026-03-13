@@ -7,7 +7,6 @@ export default async function orderEditConfirmedHandler({
   event: { data },
   container,
 }: SubscriberArgs<{ order_id: string; actions: any[] }>) {
-  console.log("[Subscriber] order-edit.confirmed triggered, data:", JSON.stringify(data))
   try {
     const orderService = container.resolve(Modules.ORDER) as any
     const order = await orderService.retrieveOrder(data.order_id, {

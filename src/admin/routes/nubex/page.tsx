@@ -22,6 +22,24 @@ type SyncLog = {
   created_at: string
 }
 
+type SyncDetail = {
+  id: string
+  product_id: string
+  product_title: string
+  variant_id: string
+  variant_title: string
+  sku: string
+  price_changed: boolean
+  old_price: number | null
+  new_price: number | null
+  qty_changed: boolean
+  old_qty: number | null
+  new_qty: number | null
+  status_changed: boolean
+  old_status: string | null
+  new_status: string | null
+}
+
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "-"
   return new Date(dateStr).toLocaleString("es-CO", {
@@ -33,6 +51,11 @@ function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`
   if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
   return `${(ms / 60000).toFixed(1)}min`
+}
+
+function formatPrice(amount: number | null): string {
+  if (amount === null) return "-"
+  return `$${amount.toLocaleString("es-CO")}`
 }
 
 const STATUS_COLORS: Record<string, "green" | "red" | "orange" | "grey"> = {
@@ -49,18 +72,185 @@ const STATUS_LABELS: Record<string, string> = {
 
 const COL_COUNT = 12
 
+// Group details by product for display
+function groupByProduct(details: SyncDetail[]): Map<string, SyncDetail[]> {
+  const map = new Map<string, SyncDetail[]>()
+  for (const d of details) {
+    const key = d.product_id
+    if (!map.has(key)) map.set(key, [])
+    map.get(key)!.push(d)
+  }
+  return map
+}
+
+function getChangeBadges(detail: SyncDetail) {
+  const badges: JSX.Element[] = []
+  if (detail.price_changed) {
+    badges.push(
+      <Badge key="price" color="blue" className="text-xs">
+        Precio
+      </Badge>
+    )
+  }
+  if (detail.qty_changed) {
+    badges.push(
+      <Badge key="qty" color="purple" className="text-xs">
+        Inventario
+      </Badge>
+    )
+  }
+  if (detail.status_changed) {
+    badges.push(
+      <Badge
+        key="status"
+        color={detail.new_status === "published" ? "green" : "orange"}
+        className="text-xs"
+      >
+        {detail.new_status === "published" ? "Publicado" : "Despublicado"}
+      </Badge>
+    )
+  }
+  return badges
+}
+
+const SyncDetailsPanel = ({ syncLogId }: { syncLogId: string }) => {
+  const [details, setDetails] = useState<SyncDetail[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchDetails = async () => {
+      try {
+        const res = await fetch(
+          `/admin/nubex/sync-details?sync_log_id=${syncLogId}`,
+          { credentials: "include" }
+        )
+        if (res.ok) {
+          const data = await res.json()
+          setDetails(data.details ?? [])
+        }
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchDetails()
+  }, [syncLogId])
+
+  if (loading) {
+    return (
+      <Text className="text-ui-fg-subtle text-sm py-2">
+        Cargando cambios...
+      </Text>
+    )
+  }
+
+  if (details.length === 0) {
+    return (
+      <Text className="text-ui-fg-muted text-sm py-2">
+        Sin cambios registrados en esta sincronizacion.
+      </Text>
+    )
+  }
+
+  const grouped = groupByProduct(details)
+
+  return (
+    <div className="flex flex-col gap-y-2 max-h-96 overflow-y-auto">
+      {[...grouped.entries()].map(([productId, variants]) => {
+        const productTitle = variants[0]?.product_title || productId
+        return (
+          <div
+            key={productId}
+            className="bg-ui-bg-base border rounded p-3"
+          >
+            <Text className="text-sm font-medium mb-2">{productTitle}</Text>
+            <div className="flex flex-col gap-y-1">
+              {variants.map((v) => (
+                <div
+                  key={v.id}
+                  className="flex items-start justify-between gap-x-4 text-xs py-1 border-t first:border-t-0"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-x-2 mb-1">
+                      <span className="text-ui-fg-subtle font-mono">
+                        SKU: {v.sku}
+                      </span>
+                      {v.variant_title && (
+                        <span className="text-ui-fg-muted truncate">
+                          {v.variant_title}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {getChangeBadges(v)}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-y-0.5 text-right shrink-0">
+                    {v.price_changed && (
+                      <span>
+                        <span className="text-ui-fg-subtle">Precio: </span>
+                        <span className="text-ui-fg-error line-through">
+                          {formatPrice(v.old_price)}
+                        </span>
+                        {" → "}
+                        <span className="text-green-600 font-medium">
+                          {formatPrice(v.new_price)}
+                        </span>
+                      </span>
+                    )}
+                    {v.qty_changed && (
+                      <span>
+                        <span className="text-ui-fg-subtle">Cant: </span>
+                        <span className="text-ui-fg-error">
+                          {v.old_qty ?? 0}
+                        </span>
+                        {" → "}
+                        <span className="text-green-600 font-medium">
+                          {v.new_qty ?? 0}
+                        </span>
+                      </span>
+                    )}
+                    {v.status_changed && (
+                      <span>
+                        <span className="text-ui-fg-subtle">Estado: </span>
+                        <span className="text-ui-fg-error">
+                          {v.old_status === "published" ? "Publicado" : "Borrador"}
+                        </span>
+                        {" → "}
+                        <span className="text-green-600 font-medium">
+                          {v.new_status === "published" ? "Publicado" : "Borrador"}
+                        </span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 const SyncLogRow = ({ log }: { log: SyncLog }) => {
   const [expanded, setExpanded] = useState(false)
-  const hasDetails = log.error_details || log.errors > 0 || log.status === "failed"
+  const hasChanges =
+    log.prices_updated > 0 ||
+    log.inventory_updated > 0 ||
+    log.inventory_created > 0 ||
+    log.products_published > 0 ||
+    log.products_unpublished > 0 ||
+    log.errors > 0 ||
+    log.status === "failed"
 
   return (
     <>
       <tr
-        className={`border-b hover:bg-ui-bg-subtle-hover ${hasDetails ? "cursor-pointer" : ""}`}
-        onClick={() => hasDetails && setExpanded(!expanded)}
+        className={`border-b hover:bg-ui-bg-subtle-hover ${hasChanges ? "cursor-pointer" : ""}`}
+        onClick={() => hasChanges && setExpanded(!expanded)}
       >
         <td className="px-4 py-3 text-xs">
-          {hasDetails && (
+          {hasChanges && (
             expanded
               ? <ChevronDown size={14} className="inline mr-1 text-ui-fg-subtle" />
               : <ChevronRight size={14} className="inline mr-1 text-ui-fg-subtle" />
@@ -120,9 +310,9 @@ const SyncLogRow = ({ log }: { log: SyncLog }) => {
                   <Text className="text-sm">{formatDuration(log.duration_ms)}</Text>
                 </div>
                 <div>
-                  <Text className="text-ui-fg-subtle text-xs uppercase">SKUs sin inventario</Text>
+                  <Text className="text-ui-fg-subtle text-xs uppercase">SKUs sin coincidencia</Text>
                   <Text className="text-sm">
-                    {log.total_erp_products - log.matched_skus} sin coincidencia
+                    {log.total_erp_products - log.matched_skus}
                   </Text>
                 </div>
               </div>
@@ -148,6 +338,14 @@ const SyncLogRow = ({ log }: { log: SyncLog }) => {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Product changes */}
+              <div>
+                <Text className="text-ui-fg-subtle text-xs uppercase mb-2 font-medium">
+                  Cambios por producto
+                </Text>
+                <SyncDetailsPanel syncLogId={log.id} />
               </div>
 
               {/* Error details */}
@@ -353,7 +551,7 @@ const NubexPage = () => {
               Historial de sincronizaciones
             </Heading>
             <Text className="text-ui-fg-subtle text-xs">
-              Haz clic en una fila con errores para ver detalles
+              Haz clic en una fila para ver los cambios detallados por producto
             </Text>
           </div>
           <Button size="small" variant="secondary" onClick={fetchLogs}>

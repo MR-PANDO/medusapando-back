@@ -1,5 +1,6 @@
 import { MedusaService } from "@medusajs/framework/utils"
 import { NubexSyncLog } from "./models/nubex-sync-log"
+import { NubexSyncDetail } from "./models/nubex-sync-detail"
 
 export type NubexProduct = {
   sku: string
@@ -12,6 +13,7 @@ export type NubexProduct = {
 
 class NubexModuleService extends MedusaService({
   NubexSyncLog,
+  NubexSyncDetail,
 }) {
   /**
    * Query all active products from Nubex ERP (SQL Server).
@@ -60,7 +62,7 @@ class NubexModuleService extends MedusaService({
           INNER JOIN dbo.tbreferencias AS r ON p.codigo_ref = r.codigo
           LEFT OUTER JOIN dbo.tbdetdivision AS dd ON p.codigo_detdiv = dd.codigo
           LEFT OUTER JOIN dbo.tbdetsubdivicion AS ds ON p.codigo_detsubdiv = ds.codigo
-          LEFT OUTER JOIN dbo.tbprecios AS pr ON p.codigo = pr.codigo_prod
+          LEFT OUTER JOIN dbo.tbprecios AS pr ON p.codigo = pr.codigo_prod AND pr.idlistaprecio = 1
           LEFT OUTER JOIN dbo.vw_existencias_ultima AS e
             ON p.codigo = e.codproducto AND e.rn = 1 AND e.codsucursal = @sucursal
           WHERE (p.activo = 1) AND (r.activo = 1) AND (r.escombo = 0)

@@ -1,4 +1,5 @@
 import { model } from "@medusajs/framework/utils"
+import { NubexSyncDetail } from "./nubex-sync-detail"
 
 export const NubexSyncLog = model.define("nubex_sync_log", {
   id: model.id().primaryKey(),
@@ -16,4 +17,5 @@ export const NubexSyncLog = model.define("nubex_sync_log", {
   duration_ms: model.number().default(0),
   started_at: model.dateTime(),
   finished_at: model.dateTime().nullable(),
+  details: model.hasMany(() => NubexSyncDetail, { mappedBy: "sync_log" }),
 })

@@ -19,12 +19,31 @@ type SyncResult = {
   duration_ms: number
 }
 
+type ChangeEntry = {
+  productId: string
+  productTitle: string
+  variantId: string
+  variantTitle: string
+  sku: string
+  priceChanged: boolean
+  oldPrice: number | null
+  newPrice: number | null
+  qtyChanged: boolean
+  oldQty: number | null
+  newQty: number | null
+  statusChanged: boolean
+  oldStatus: string | null
+  newStatus: string | null
+}
+
 // Prevent concurrent syncs
 let syncLock = false
 
 /**
  * Run a full Nubex ERP → Medusa sync.
  * Updates prices (COP) and inventory quantities for all matched SKUs.
+ * Publishes/unpublishes products based on stock availability.
+ * Tracks per-variant changes for the admin dashboard.
  */
 export async function runNubexSync(
   container: any,
@@ -39,6 +58,31 @@ export async function runNubexSync(
   const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
   const startTime = Date.now()
   const errorLines: string[] = []
+
+  // Track per-variant changes
+  const changes = new Map<string, ChangeEntry>()
+
+  function getOrCreateChange(variantId: string, defaults: Partial<ChangeEntry>): ChangeEntry {
+    if (!changes.has(variantId)) {
+      changes.set(variantId, {
+        productId: defaults.productId ?? "",
+        productTitle: defaults.productTitle ?? "",
+        variantId,
+        variantTitle: defaults.variantTitle ?? "",
+        sku: defaults.sku ?? "",
+        priceChanged: false,
+        oldPrice: null,
+        newPrice: null,
+        qtyChanged: false,
+        oldQty: null,
+        newQty: null,
+        statusChanged: false,
+        oldStatus: null,
+        newStatus: null,
+      })
+    }
+    return changes.get(variantId)!
+  }
 
   // Create sync log entry
   const syncLog = await nubexService.createNubexSyncLogs({
@@ -88,17 +132,31 @@ export async function runNubexSync(
       if (p.sku) erpMap.set(p.sku, p)
     }
 
-    // 2. Query all Medusa variants with their SKUs and manage_inventory flag
+    // 2. Query all Medusa variants with their SKUs, titles, and product info
     console.log("[NubexSync] Querying Medusa variants...")
     const { data: variants } = await query.graph({
       entity: "product_variant",
-      fields: ["id", "sku", "manage_inventory", "product.id"],
+      fields: [
+        "id",
+        "sku",
+        "title",
+        "manage_inventory",
+        "product.id",
+        "product.title",
+        "product.status",
+      ],
     })
 
     console.log(`[NubexSync] Got ${variants.length} Medusa variants`)
 
     // 3. Match SKUs and collect matched variant IDs
-    const matchedVariants: Array<{ variantId: string; sku: string; productId: string }> = []
+    const matchedVariants: Array<{
+      variantId: string
+      sku: string
+      productId: string
+      productTitle: string
+      variantTitle: string
+    }> = []
     const priceUpdates: Array<{
       id: string
       prices: Array<{ amount: number; currency_code: string }>
@@ -114,14 +172,86 @@ export async function runNubexSync(
         variantId: variant.id,
         sku: variant.sku,
         productId: variant.product?.id,
+        productTitle: variant.product?.title ?? "",
+        variantTitle: variant.title ?? "",
       })
 
-      // Price update — COP amount (Nubex stores in full units, Medusa too for COP)
+      // Price update — COP amount
       if (erpProduct.precio > 0) {
         priceUpdates.push({
           id: variant.id,
           prices: [{ amount: erpProduct.precio, currency_code: "cop" }],
         })
+      }
+    }
+
+    // 3.5 Fetch current COP prices for matched variants to detect changes
+    const currentPriceMap = new Map<string, number>()
+    if (matchedVariants.length > 0) {
+      try {
+        const pricingService = container.resolve(Modules.PRICING) as any
+        const variantIds = matchedVariants.map((v) => v.variantId)
+
+        // Get variant → price_set links
+        const { data: priceLinks } = await query.graph({
+          entity: "product_variant_price_set",
+          fields: ["variant_id", "price_set_id"],
+          filters: { variant_id: variantIds },
+        })
+
+        if (priceLinks.length > 0) {
+          const priceSetIds = priceLinks.map((l: any) => l.price_set_id)
+          const variantByPriceSet = new Map<string, string>()
+          for (const l of priceLinks) {
+            variantByPriceSet.set(l.price_set_id, l.variant_id)
+          }
+
+          // Fetch money amounts for COP
+          const priceSetList = await pricingService.listPriceSets(
+            { id: priceSetIds },
+            { relations: ["prices"] }
+          )
+
+          for (const ps of priceSetList) {
+            const variantId = variantByPriceSet.get(ps.id)
+            if (!variantId) continue
+            const copPrice = ps.prices?.find(
+              (p: any) => p.currency_code === "cop"
+            )
+            if (copPrice) {
+              currentPriceMap.set(variantId, Number(copPrice.amount))
+            }
+          }
+        }
+        console.log(`[NubexSync] Fetched current prices for ${currentPriceMap.size} variants`)
+      } catch (err: any) {
+        console.warn(`[NubexSync] Could not fetch current prices: ${err.message}`)
+      }
+    }
+
+    // Track price changes
+    for (const mv of matchedVariants) {
+      const erpProduct = erpMap.get(mv.sku)
+      if (!erpProduct || erpProduct.precio <= 0) continue
+
+      const currentPrice = currentPriceMap.get(mv.variantId) ?? null
+      const newPrice = erpProduct.precio
+
+      if (currentPrice === null || currentPrice !== newPrice) {
+        const entry = getOrCreateChange(mv.variantId, {
+          productId: mv.productId,
+          productTitle: mv.productTitle,
+          variantTitle: mv.variantTitle,
+          sku: mv.sku,
+        })
+        entry.priceChanged = true
+        entry.oldPrice = currentPrice
+        entry.newPrice = newPrice
+        if (currentPrice !== null) {
+          console.log(
+            `[NubexSync] Price change SKU ${mv.sku}: $${currentPrice} → $${newPrice}`
+          )
+        }
       }
     }
 
@@ -219,6 +349,17 @@ export async function runNubexSync(
               }])
             }
 
+            // Track inventory creation
+            const entry = getOrCreateChange(v.variantId, {
+              productId: v.productId,
+              productTitle: v.productTitle,
+              variantTitle: v.variantTitle,
+              sku: v.sku,
+            })
+            entry.qtyChanged = true
+            entry.oldQty = 0
+            entry.newQty = qty
+
             result.inventory_created++
           } catch (err: any) {
             result.errors++
@@ -246,6 +387,10 @@ export async function runNubexSync(
       location_id: string
       stocked_quantity: number
     }> = []
+
+    // Map to track variant→old qty for change tracking
+    const variantOldQtyMap = new Map<string, number>()
+    const inventoryItemToVariantMap = new Map<string, string>()
 
     if (matchedVariants.length > 0) {
       const variantIds = matchedVariants.map((v) => v.variantId)
@@ -280,6 +425,8 @@ export async function runNubexSync(
         const qty = Math.max(0, Math.floor(erpProduct.cantidad))
         const levels = link.inventory?.location_levels ?? []
 
+        inventoryItemToVariantMap.set(link.inventory_item_id, link.variant_id)
+
         if (levels.length === 0) {
           // No inventory level exists — create one if we have a stock location
           if (defaultLocationId) {
@@ -288,6 +435,8 @@ export async function runNubexSync(
               location_id: defaultLocationId,
               stocked_quantity: qty,
             })
+            // Track as qty change (0 → qty)
+            variantOldQtyMap.set(link.variant_id, 0)
           } else {
             result.skipped_no_inventory++
           }
@@ -295,14 +444,18 @@ export async function runNubexSync(
         }
 
         for (const level of levels) {
+          const oldQty = Number(level.stocked_quantity)
           // Skip if quantity hasn't changed (avoid unnecessary writes)
-          if (Number(level.stocked_quantity) === qty) continue
+          if (oldQty === qty) continue
 
           inventoryUpdates.push({
             inventory_item_id: link.inventory_item_id,
             location_id: level.location_id,
             stocked_quantity: qty,
           })
+
+          // Track old qty for change tracking
+          variantOldQtyMap.set(link.variant_id, oldQty)
         }
       }
 
@@ -311,7 +464,7 @@ export async function runNubexSync(
       )
     }
 
-    // 5. Update prices in batches
+    // 6. Update prices in batches
     const BATCH_SIZE = 50
     if (priceUpdates.length > 0) {
       const { updateProductVariantsWorkflow } = await import(
@@ -321,12 +474,16 @@ export async function runNubexSync(
       for (let i = 0; i < priceUpdates.length; i += BATCH_SIZE) {
         const batch = priceUpdates.slice(i, i + BATCH_SIZE)
         try {
+          console.log(
+            `[NubexSync] Updating prices batch ${i}-${i + batch.length}: ${batch.map((b) => `SKU ${matchedVariants.find((v) => v.variantId === b.id)?.sku}=$${b.prices[0].amount}`).join(", ")}`
+          )
           await updateProductVariantsWorkflow(container).run({
             input: {
               product_variants: batch,
             },
           })
           result.prices_updated += batch.length
+          console.log(`[NubexSync] Price batch ${i}-${i + batch.length} succeeded`)
         } catch (err: any) {
           result.errors += batch.length
           errorLines.push(
@@ -337,7 +494,7 @@ export async function runNubexSync(
       }
     }
 
-    // 6. Create missing inventory levels in batches (for variants that had items but no levels)
+    // 7. Create missing inventory levels in batches
     if (inventoryLevelCreates.length > 0) {
       const inventoryService = container.resolve(Modules.INVENTORY) as any
 
@@ -346,6 +503,23 @@ export async function runNubexSync(
         try {
           await inventoryService.createInventoryLevels(batch)
           result.inventory_created += batch.length
+
+          // Track qty changes for created levels
+          for (const item of batch) {
+            const variantId = inventoryItemToVariantMap.get(item.inventory_item_id)
+            if (!variantId) continue
+            const mv = matchedVariants.find((v) => v.variantId === variantId)
+            if (!mv) continue
+            const entry = getOrCreateChange(variantId, {
+              productId: mv.productId,
+              productTitle: mv.productTitle,
+              variantTitle: mv.variantTitle,
+              sku: mv.sku,
+            })
+            entry.qtyChanged = true
+            entry.oldQty = 0
+            entry.newQty = item.stocked_quantity
+          }
         } catch (err: any) {
           result.errors += batch.length
           errorLines.push(
@@ -359,7 +533,7 @@ export async function runNubexSync(
       }
     }
 
-    // 7. Update existing inventory levels in batches
+    // 8. Update existing inventory levels in batches
     if (inventoryUpdates.length > 0) {
       const inventoryService = container.resolve(Modules.INVENTORY) as any
 
@@ -368,6 +542,24 @@ export async function runNubexSync(
         try {
           await inventoryService.updateInventoryLevels(batch)
           result.inventory_updated += batch.length
+
+          // Track qty changes for updated levels
+          for (const item of batch) {
+            const variantId = inventoryItemToVariantMap.get(item.inventory_item_id)
+            if (!variantId) continue
+            const mv = matchedVariants.find((v) => v.variantId === variantId)
+            if (!mv) continue
+            const oldQty = variantOldQtyMap.get(variantId) ?? null
+            const entry = getOrCreateChange(variantId, {
+              productId: mv.productId,
+              productTitle: mv.productTitle,
+              variantTitle: mv.variantTitle,
+              sku: mv.sku,
+            })
+            entry.qtyChanged = true
+            entry.oldQty = oldQty
+            entry.newQty = item.stocked_quantity
+          }
         } catch (err: any) {
           result.errors += batch.length
           errorLines.push(
@@ -381,7 +573,7 @@ export async function runNubexSync(
       }
     }
 
-    // 8. Publish/unpublish products based on ERP stock
+    // 9. Publish/unpublish products based on ERP stock
     if (matchedVariants.length > 0) {
       const productService = container.resolve(Modules.PRODUCT) as any
 
@@ -429,8 +621,22 @@ export async function runNubexSync(
       // Publish products with stock
       for (const id of toPublish) {
         try {
+          const oldStatus = currentStatusMap.get(id) ?? "draft"
           await productService.updateProducts(id, { status: "published" })
           result.products_published++
+
+          // Track status change for all variants of this product
+          for (const mv of matchedVariants.filter((v) => v.productId === id)) {
+            const entry = getOrCreateChange(mv.variantId, {
+              productId: mv.productId,
+              productTitle: mv.productTitle,
+              variantTitle: mv.variantTitle,
+              sku: mv.sku,
+            })
+            entry.statusChanged = true
+            entry.oldStatus = oldStatus
+            entry.newStatus = "published"
+          }
         } catch (err: any) {
           result.errors++
           errorLines.push(`Publish product ${id}: ${err.message}`)
@@ -443,6 +649,19 @@ export async function runNubexSync(
         try {
           await productService.updateProducts(id, { status: "draft" })
           result.products_unpublished++
+
+          // Track status change for all variants of this product
+          for (const mv of matchedVariants.filter((v) => v.productId === id)) {
+            const entry = getOrCreateChange(mv.variantId, {
+              productId: mv.productId,
+              productTitle: mv.productTitle,
+              variantTitle: mv.variantTitle,
+              sku: mv.sku,
+            })
+            entry.statusChanged = true
+            entry.oldStatus = "published"
+            entry.newStatus = "draft"
+          }
         } catch (err: any) {
           result.errors++
           errorLines.push(`Unpublish product ${id}: ${err.message}`)
@@ -453,6 +672,43 @@ export async function runNubexSync(
       console.log(
         `[NubexSync] Status updates: ${result.products_published} published, ${result.products_unpublished} unpublished`
       )
+    }
+
+    // 10. Save sync details (only entries with actual changes)
+    const changedEntries = [...changes.values()].filter(
+      (c) => c.priceChanged || c.qtyChanged || c.statusChanged
+    )
+
+    if (changedEntries.length > 0) {
+      console.log(`[NubexSync] Saving ${changedEntries.length} change details...`)
+      try {
+        const detailRecords = changedEntries.map((c) => ({
+          sync_log_id: syncLog.id,
+          product_id: c.productId,
+          product_title: c.productTitle,
+          variant_id: c.variantId,
+          variant_title: c.variantTitle,
+          sku: c.sku,
+          price_changed: c.priceChanged,
+          old_price: c.oldPrice,
+          new_price: c.newPrice,
+          qty_changed: c.qtyChanged,
+          old_qty: c.oldQty,
+          new_qty: c.newQty,
+          status_changed: c.statusChanged,
+          old_status: c.oldStatus,
+          new_status: c.newStatus,
+        }))
+
+        // Save in batches
+        for (let i = 0; i < detailRecords.length; i += BATCH_SIZE) {
+          const batch = detailRecords.slice(i, i + BATCH_SIZE)
+          await nubexService.createNubexSyncDetails(batch)
+        }
+      } catch (err: any) {
+        console.error(`[NubexSync] Error saving sync details:`, err.message)
+        errorLines.push(`Sync details save: ${err.message}`)
+      }
     }
 
     result.duration_ms = Date.now() - startTime
@@ -467,7 +723,7 @@ export async function runNubexSync(
     )
 
     console.log(
-      `[NubexSync] Completed in ${result.duration_ms}ms. Prices: ${result.prices_updated}, Inventory created: ${result.inventory_created}, updated: ${result.inventory_updated}, Published: ${result.products_published}, Unpublished: ${result.products_unpublished}, Errors: ${result.errors}`
+      `[NubexSync] Completed in ${result.duration_ms}ms. Prices: ${result.prices_updated}, Inventory created: ${result.inventory_created}, updated: ${result.inventory_updated}, Published: ${result.products_published}, Unpublished: ${result.products_unpublished}, Changes tracked: ${changedEntries.length}, Errors: ${result.errors}`
     )
 
     return result

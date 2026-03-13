@@ -83,36 +83,6 @@ function groupByProduct(details: SyncDetail[]): Map<string, SyncDetail[]> {
   return map
 }
 
-function getChangeBadges(detail: SyncDetail) {
-  const badges: JSX.Element[] = []
-  if (detail.price_changed) {
-    badges.push(
-      <Badge key="price" color="blue" className="text-xs">
-        Precio
-      </Badge>
-    )
-  }
-  if (detail.qty_changed) {
-    badges.push(
-      <Badge key="qty" color="purple" className="text-xs">
-        Inventario
-      </Badge>
-    )
-  }
-  if (detail.status_changed) {
-    badges.push(
-      <Badge
-        key="status"
-        color={detail.new_status === "published" ? "green" : "orange"}
-        className="text-xs"
-      >
-        {detail.new_status === "published" ? "Publicado" : "Despublicado"}
-      </Badge>
-    )
-  }
-  return badges
-}
-
 const SyncDetailsPanel = ({ syncLogId }: { syncLogId: string }) => {
   const [details, setDetails] = useState<SyncDetail[]>([])
   const [loading, setLoading] = useState(true)
@@ -167,59 +137,59 @@ const SyncDetailsPanel = ({ syncLogId }: { syncLogId: string }) => {
               {variants.map((v) => (
                 <div
                   key={v.id}
-                  className="flex items-start justify-between gap-x-4 text-xs py-1 border-t first:border-t-0"
+                  className="text-xs py-2 border-t first:border-t-0"
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-x-2 mb-1">
-                      <span className="text-ui-fg-subtle font-mono">
-                        SKU: {v.sku}
+                  <div className="flex items-center gap-x-2 mb-1">
+                    <span className="text-ui-fg-subtle font-mono">
+                      SKU: {v.sku}
+                    </span>
+                    {v.variant_title && (
+                      <span className="text-ui-fg-muted truncate">
+                        {v.variant_title}
                       </span>
-                      {v.variant_title && (
-                        <span className="text-ui-fg-muted truncate">
-                          {v.variant_title}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {getChangeBadges(v)}
-                    </div>
+                    )}
                   </div>
-                  <div className="flex flex-col items-end gap-y-0.5 text-right shrink-0">
+                  <div className="flex flex-col gap-y-1 mt-1">
                     {v.price_changed && (
-                      <span>
-                        <span className="text-ui-fg-subtle">Precio: </span>
+                      <div className="flex items-center gap-x-2">
+                        <Badge color="blue" className="text-xs">Precio</Badge>
                         <span className="text-ui-fg-error line-through">
                           {formatPrice(v.old_price)}
                         </span>
-                        {" → "}
+                        <span className="text-ui-fg-subtle">→</span>
                         <span className="text-green-600 font-medium">
                           {formatPrice(v.new_price)}
                         </span>
-                      </span>
+                      </div>
                     )}
                     {v.qty_changed && (
-                      <span>
-                        <span className="text-ui-fg-subtle">Cant: </span>
+                      <div className="flex items-center gap-x-2">
+                        <Badge color="purple" className="text-xs">Inventario</Badge>
                         <span className="text-ui-fg-error">
                           {v.old_qty ?? 0}
                         </span>
-                        {" → "}
+                        <span className="text-ui-fg-subtle">→</span>
                         <span className="text-green-600 font-medium">
                           {v.new_qty ?? 0}
                         </span>
-                      </span>
+                      </div>
                     )}
                     {v.status_changed && (
-                      <span>
-                        <span className="text-ui-fg-subtle">Estado: </span>
+                      <div className="flex items-center gap-x-2">
+                        <Badge
+                          color={v.new_status === "published" ? "green" : "orange"}
+                          className="text-xs"
+                        >
+                          {v.new_status === "published" ? "Publicado" : "Despublicado"}
+                        </Badge>
                         <span className="text-ui-fg-error">
                           {v.old_status === "published" ? "Publicado" : "Borrador"}
                         </span>
-                        {" → "}
+                        <span className="text-ui-fg-subtle">→</span>
                         <span className="text-green-600 font-medium">
                           {v.new_status === "published" ? "Publicado" : "Borrador"}
                         </span>
-                      </span>
+                      </div>
                     )}
                   </div>
                 </div>

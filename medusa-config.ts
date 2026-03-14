@@ -67,11 +67,15 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/location",
     },
-    // Fulfillment Module with Domicilios provider (local delivery Medellín metro)
+    // Fulfillment Module — default manual + Domicilios (local delivery Medellín metro)
     {
       resolve: "@medusajs/medusa/fulfillment",
       options: {
         providers: [
+          {
+            resolve: "@medusajs/medusa/fulfillment-manual",
+            id: "manual",
+          },
           {
             resolve: "./src/providers/fulfillment-domicilios",
             id: "domicilios-medellin",

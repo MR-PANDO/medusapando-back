@@ -14,15 +14,21 @@ export async function stableSortMiddleware(
   const listConfig = (req as any).listConfig
 
   // Add id as tiebreaker to remoteQueryConfig.pagination.order
-  if (queryConfig?.pagination?.order) {
-    if (!queryConfig.pagination.order.id) {
+  if (queryConfig?.pagination) {
+    if (!queryConfig.pagination.order) {
+      queryConfig.pagination.order = { id: "ASC" }
+    } else if (!queryConfig.pagination.order.id) {
       queryConfig.pagination.order.id = "ASC"
     }
+    // Debug header so we can verify the middleware ran
+    res.setHeader("X-Stable-Sort", JSON.stringify(queryConfig.pagination.order))
   }
 
   // Add id as tiebreaker to listConfig.order
-  if (listConfig?.order) {
-    if (!listConfig.order.id) {
+  if (listConfig) {
+    if (!listConfig.order) {
+      listConfig.order = { id: "ASC" }
+    } else if (!listConfig.order.id) {
       listConfig.order.id = "ASC"
     }
   }

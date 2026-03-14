@@ -314,12 +314,7 @@ const DEPARTMENTS_DATA: Record<string, string[]> = {
     "Puerto Carreño", "La Primavera", "Santa Rosalía", "Cumaribo",
   ],
   "Bogotá D.C.": [
-    // Bogotá is a single municipality, but localidades are listed for
-    // delivery/shipping purposes as they help identify areas within the city
-    "Usaquén", "Chapinero", "Santa Fe", "San Cristóbal", "Usme", "Tunjuelito",
-    "Bosa", "Kennedy", "Fontibón", "Engativá", "Suba", "Barrios Unidos",
-    "Teusaquillo", "Los Mártires", "Antonio Nariño", "Puente Aranda",
-    "La Candelaria", "Rafael Uribe Uribe", "Ciudad Bolívar", "Sumapaz",
+    "Bogotá D.C.",
   ],
 }
 

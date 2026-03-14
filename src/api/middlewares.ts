@@ -16,9 +16,16 @@ import {
   PostAdminBatchTranslations,
 } from "./admin/translations/validators"
 import { skuSearchMiddleware } from "./middlewares/sku-search"
+import { stableSortMiddleware } from "./middlewares/stable-sort"
 
 export default defineMiddlewares({
   routes: [
+    // Stable sort for store product listings (prevents duplicates across pages)
+    {
+      matcher: "/store/products",
+      method: "GET",
+      middlewares: [stableSortMiddleware],
+    },
     // SKU search middleware for admin product list
     {
       matcher: "/admin/products",

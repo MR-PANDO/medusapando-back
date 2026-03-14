@@ -46,47 +46,56 @@ export const GET = async (
     })
   }
 
-  // Enrich items with variant and product data via query
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-  const enrichedItems: any[] = []
+  // Collect all variant IDs to fetch in one query
+  const variantIds = (wishlist.items || [])
+    .map((item: any) => item.product_variant_id)
+    .filter(Boolean)
 
-  for (const item of wishlist.items || []) {
+  // Fetch all variants with product data in a single query
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
+  const variantMap = new Map<string, any>()
+
+  if (variantIds.length > 0) {
     try {
-      const { data: [variant] } = await query.graph({
+      const { data: variants } = await query.graph({
         entity: "product_variant",
         fields: [
           "id",
           "title",
           "sku",
-          "calculated_price.*",
-          "product.*",
-          "product.thumbnail",
-          "product.handle",
+          "product.id",
           "product.title",
+          "product.handle",
+          "product.thumbnail",
           "product.status",
         ],
-        filters: { id: item.product_variant_id },
-        context: {
-          currency_code:
-            req.pricingContext?.currency_code ||
-            req.query.currency_code as string ||
-            "cop",
-        },
+        filters: { id: variantIds },
       })
 
-      enrichedItems.push({
-        id: item.id,
-        product_variant_id: item.product_variant_id,
-        variant: variant || null,
-      })
-    } catch {
-      enrichedItems.push({
-        id: item.id,
-        product_variant_id: item.product_variant_id,
-        variant: null,
-      })
+      for (const v of variants) {
+        variantMap.set(v.id, v)
+      }
+    } catch (err: any) {
+      console.error("[Wishlist] Error fetching variants:", err.message)
     }
   }
+
+  // Build enriched items
+  const enrichedItems = (wishlist.items || []).map((item: any) => {
+    const variant = variantMap.get(item.product_variant_id) || null
+    return {
+      id: item.id,
+      product_variant_id: item.product_variant_id,
+      variant: variant
+        ? {
+            id: variant.id,
+            title: variant.title,
+            sku: variant.sku,
+            product: variant.product || null,
+          }
+        : null,
+    }
+  })
 
   res.json({
     wishlist: {

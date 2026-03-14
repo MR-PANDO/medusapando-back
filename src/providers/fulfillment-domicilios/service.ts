@@ -50,8 +50,15 @@ class DomiciliosFulfillmentService extends AbstractFulfillmentProviderService {
   ): Promise<{ calculated_amount: number; is_calculated_price_tax_inclusive: boolean }> {
     const neighborhoodId = data?.neighborhood_id as string | undefined
 
+    console.log("[Domicilios] calculatePrice called:", JSON.stringify({
+      neighborhoodId,
+      dataKeys: data ? Object.keys(data) : [],
+      data: data,
+    }))
+
     if (!neighborhoodId) {
-      return { calculated_amount: 0, is_calculated_price_tax_inclusive: true }
+      console.log("[Domicilios] No neighborhood_id in data, returning 0")
+      return { calculated_amount: 0, is_calculated_price_tax_inclusive: false }
     }
 
     try {
@@ -67,16 +74,19 @@ class DomiciliosFulfillmentService extends AbstractFulfillmentProviderService {
       await client.end()
 
       if (result.rows.length > 0) {
+        const price = result.rows[0].shipping_price
+        console.log(`[Domicilios] Found neighborhood ${neighborhoodId}, price: ${price}`)
         return {
-          calculated_amount: result.rows[0].shipping_price,
-          is_calculated_price_tax_inclusive: true,
+          calculated_amount: price,
+          is_calculated_price_tax_inclusive: false,
         }
       }
+      console.log(`[Domicilios] Neighborhood ${neighborhoodId} not found in DB`)
     } catch (err: any) {
       console.error("[Domicilios] Error looking up neighborhood price:", err.message)
     }
 
-    return { calculated_amount: 0, is_calculated_price_tax_inclusive: true }
+    return { calculated_amount: 0, is_calculated_price_tax_inclusive: false }
   }
 
   async createFulfillment(

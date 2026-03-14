@@ -63,6 +63,10 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/nubex",
     },
+    // Location Module - Colombian departments and municipalities
+    {
+      resolve: "./src/modules/location",
+    },
     // Payment Module with Wompi provider
     {
       resolve: "@medusajs/medusa/payment",

@@ -4,6 +4,9 @@ import {
 } from "@medusajs/framework/utils"
 import { NUBEX_MODULE } from "../modules/nubex"
 import type NubexModuleService from "../modules/nubex/service"
+import { EMAIL_AUDIT_MODULE } from "../modules/email-audit"
+import type EmailAuditModuleService from "../modules/email-audit/service"
+import { sendLowStockNotification } from "./nubex-low-stock-email"
 
 type SyncResult = {
   total_erp_products: number
@@ -629,7 +632,62 @@ export async function runNubexSync(
       `[NubexSync] Completed in ${result.duration_ms}ms. Prices: ${result.prices_updated}, Inventory created: ${result.inventory_created}, updated: ${result.inventory_updated}, Published: ${result.products_published}, Unpublished: ${result.products_unpublished}, Changes tracked: ${changedEntries.length}, Errors: ${result.errors}`
     )
 
-    // 11. Revalidate frontend cache so changes show immediately
+    // 11. Check for low-stock items and send notification if enabled
+    try {
+      const nubexSettings = await nubexService.getNubexSettings()
+      if (
+        nubexSettings?.low_stock_enabled &&
+        nubexSettings.notification_email &&
+        nubexSettings.low_stock_threshold > 0
+      ) {
+        const threshold = nubexSettings.low_stock_threshold
+        const lowStockItems: Array<{
+          sku: string
+          product_title: string
+          variant_title: string
+          quantity: number
+          threshold: number
+        }> = []
+
+        for (const mv of matchedVariants) {
+          const erpProduct = erpMap.get(mv.sku)
+          if (!erpProduct) continue
+          const qty = Math.max(0, Math.floor(erpProduct.cantidad))
+          if (qty < threshold) {
+            lowStockItems.push({
+              sku: mv.sku,
+              product_title: mv.productTitle,
+              variant_title: mv.variantTitle,
+              quantity: qty,
+              threshold,
+            })
+          }
+        }
+
+        if (lowStockItems.length > 0) {
+          console.log(
+            `[NubexSync] ${lowStockItems.length} items below threshold (${threshold}). Sending notification...`
+          )
+          let auditService: EmailAuditModuleService | undefined
+          try {
+            auditService = container.resolve(EMAIL_AUDIT_MODULE) as EmailAuditModuleService
+          } catch {}
+
+          await sendLowStockNotification({
+            to: nubexSettings.notification_email,
+            items: lowStockItems,
+            threshold,
+            auditService,
+          })
+          console.log("[NubexSync] Low-stock notification sent")
+        }
+      }
+    } catch (err: any) {
+      console.error("[NubexSync] Low-stock notification error:", err.message)
+      // Don't fail the sync for notification errors
+    }
+
+    // 12. Revalidate frontend cache so changes show immediately
     if (changedEntries.length > 0) {
       const storefrontUrl = process.env.STOREFRONT_URL
       if (storefrontUrl) {

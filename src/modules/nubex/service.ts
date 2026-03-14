@@ -1,6 +1,7 @@
 import { MedusaService } from "@medusajs/framework/utils"
 import { NubexSyncLog } from "./models/nubex-sync-log"
 import { NubexSyncDetail } from "./models/nubex-sync-detail"
+import { NubexSettings } from "./models/nubex-settings"
 
 export type NubexProduct = {
   sku: string
@@ -14,6 +15,7 @@ export type NubexProduct = {
 class NubexModuleService extends MedusaService({
   NubexSyncLog,
   NubexSyncDetail,
+  NubexSettings,
 }) {
   /**
    * Query all active products from Nubex ERP (SQL Server).
@@ -120,6 +122,45 @@ class NubexModuleService extends MedusaService({
       { take: limit, order: { started_at: "DESC" } }
     )
     return records
+  }
+
+  /**
+   * Get Nubex low-stock notification settings.
+   */
+  async getNubexSettings(): Promise<{
+    low_stock_threshold: number
+    notification_email: string | null
+    low_stock_enabled: boolean
+  } | null> {
+    const [records] = await this.listAndCountNubexSettings(
+      {},
+      { take: 1, order: { created_at: "DESC" } }
+    )
+    if (records.length === 0) return null
+    const r = records[0] as any
+    return {
+      low_stock_threshold: r.low_stock_threshold,
+      notification_email: r.notification_email ?? null,
+      low_stock_enabled: r.low_stock_enabled,
+    }
+  }
+
+  /**
+   * Create or update Nubex settings (single row).
+   */
+  async upsertNubexSettings(data: {
+    low_stock_threshold: number
+    notification_email: string | null
+    low_stock_enabled: boolean
+  }) {
+    const [existing] = await this.listAndCountNubexSettings({}, { take: 1 })
+    if (existing.length > 0) {
+      return this.updateNubexSettings({
+        id: (existing[0] as any).id,
+        ...data,
+      })
+    }
+    return this.createNubexSettings(data)
   }
 }
 

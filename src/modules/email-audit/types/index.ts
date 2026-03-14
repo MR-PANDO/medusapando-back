@@ -5,6 +5,7 @@ export type EmailType =
   | "abandoned-cart"
   | "payment-link"
   | "payment-status"
+  | "low-inventory"
   // Medusa system notification templates
   | "order-confirmation"
   | "order-shipped"

@@ -1,6 +1,6 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { Container, Heading, Text, Badge, Button } from "@medusajs/ui"
-import { RefreshCw, Server, ChevronDown, ChevronRight } from "lucide-react"
+import { Container, Heading, Text, Badge, Button, Input, Label, Switch } from "@medusajs/ui"
+import { RefreshCw, Server, ChevronDown, ChevronRight, Bell, Pencil } from "lucide-react"
 import { useEffect, useState } from "react"
 
 type SyncLog = {
@@ -345,6 +345,250 @@ const SyncLogRow = ({ log }: { log: SyncLog }) => {
   )
 }
 
+type NubexSettingsData = {
+  low_stock_threshold: number
+  notification_email: string | null
+  low_stock_enabled: boolean
+}
+
+const LowStockSettings = () => {
+  const [settings, setSettings] = useState<NubexSettingsData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveMsg, setSaveMsg] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  // Form state
+  const [threshold, setThreshold] = useState(5)
+  const [email, setEmail] = useState("")
+  const [enabled, setEnabled] = useState(false)
+
+  const fetchSettings = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch("/admin/nubex/settings", { credentials: "include" })
+      if (res.ok) {
+        const data = await res.json()
+        const s = data.settings as NubexSettingsData | null
+        setSettings(s)
+        if (s) {
+          setThreshold(s.low_stock_threshold)
+          setEmail(s.notification_email ?? "")
+          setEnabled(s.low_stock_enabled)
+        }
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchSettings()
+  }, [])
+
+  const handleCancel = () => {
+    setEditing(false)
+    setSaveMsg(null)
+    setSaveError(null)
+    if (settings) {
+      setThreshold(settings.low_stock_threshold)
+      setEmail(settings.notification_email ?? "")
+      setEnabled(settings.low_stock_enabled)
+    } else {
+      setThreshold(5)
+      setEmail("")
+      setEnabled(false)
+    }
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    setSaveMsg(null)
+    setSaveError(null)
+    try {
+      const res = await fetch("/admin/nubex/settings", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          low_stock_threshold: threshold,
+          notification_email: email || null,
+          low_stock_enabled: enabled,
+        }),
+      })
+      if (res.ok) {
+        setSaveMsg("Configuracion guardada correctamente")
+        setEditing(false)
+        fetchSettings()
+      } else {
+        const data = await res.json()
+        setSaveError(data.error || "Error al guardar")
+      }
+    } catch {
+      setSaveError("Error de conexion")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Container className="divide-y p-0">
+      <div className="flex items-center justify-between px-6 py-4">
+        <div className="flex items-center gap-x-3">
+          <Bell className="text-ui-fg-subtle" size={20} />
+          <div>
+            <Heading level="h2" className="text-base">
+              Alertas de inventario bajo
+            </Heading>
+            <Text className="text-ui-fg-subtle text-xs">
+              Recibe notificaciones por correo cuando el stock baje del limite
+            </Text>
+          </div>
+        </div>
+        <div className="flex gap-2 items-center">
+          {!loading && settings?.low_stock_enabled && (
+            <Badge color="green">Activo</Badge>
+          )}
+          {!loading && !settings?.low_stock_enabled && (
+            <Badge color="grey">Inactivo</Badge>
+          )}
+          {!editing && (
+            <Button
+              size="small"
+              variant="secondary"
+              onClick={() => {
+                setEditing(true)
+                setSaveMsg(null)
+                setSaveError(null)
+              }}
+            >
+              <Pencil size={14} />
+              Editar
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <div className="px-6 py-4">
+        {loading ? (
+          <Text className="text-ui-fg-subtle text-sm">Cargando...</Text>
+        ) : (
+          <div className="flex flex-col gap-y-4">
+            {saveMsg && (
+              <div className="p-3 bg-ui-bg-subtle-hover rounded text-green-700 text-sm">
+                {saveMsg}
+              </div>
+            )}
+            {saveError && (
+              <div className="p-3 bg-ui-bg-subtle-hover rounded text-ui-fg-error text-sm">
+                {saveError}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="flex flex-col gap-y-1">
+                <Label htmlFor="threshold" className="text-xs text-ui-fg-subtle uppercase">
+                  Limite de stock
+                </Label>
+                {editing ? (
+                  <Input
+                    id="threshold"
+                    type="number"
+                    min={1}
+                    value={threshold}
+                    onChange={(e) => setThreshold(Number(e.target.value))}
+                    placeholder="5"
+                  />
+                ) : (
+                  <Text className="text-sm font-medium py-2">
+                    {settings?.low_stock_threshold ?? 5} unidades
+                  </Text>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-y-1">
+                <Label htmlFor="notification_email" className="text-xs text-ui-fg-subtle uppercase">
+                  Email de notificacion
+                </Label>
+                {editing ? (
+                  <Input
+                    id="notification_email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="inventario@ejemplo.com"
+                  />
+                ) : (
+                  <Text className="text-sm font-medium py-2">
+                    {settings?.notification_email || (
+                      <span className="text-ui-fg-muted">No configurado</span>
+                    )}
+                  </Text>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-y-1">
+                <Label className="text-xs text-ui-fg-subtle uppercase">
+                  Notificaciones
+                </Label>
+                {editing ? (
+                  <div className="flex items-center gap-x-2 py-2">
+                    <Switch
+                      checked={enabled}
+                      onCheckedChange={setEnabled}
+                    />
+                    <Text className="text-sm">
+                      {enabled ? "Activadas" : "Desactivadas"}
+                    </Text>
+                  </div>
+                ) : (
+                  <Text className="text-sm font-medium py-2">
+                    {settings?.low_stock_enabled ? (
+                      <span className="text-green-600">Activadas</span>
+                    ) : (
+                      <span className="text-ui-fg-muted">Desactivadas</span>
+                    )}
+                  </Text>
+                )}
+              </div>
+            </div>
+
+            {editing && (
+              <div className="flex gap-2 justify-end pt-2">
+                <Button
+                  size="small"
+                  variant="secondary"
+                  onClick={handleCancel}
+                  disabled={saving}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  size="small"
+                  variant="primary"
+                  onClick={handleSave}
+                  disabled={saving}
+                >
+                  {saving ? "Guardando..." : "Guardar"}
+                </Button>
+              </div>
+            )}
+
+            {!editing && settings?.low_stock_enabled && (
+              <Text className="text-ui-fg-subtle text-xs">
+                Se enviara una alerta a <strong>{settings.notification_email}</strong> cuando
+                algun producto tenga menos de <strong>{settings.low_stock_threshold}</strong> unidades
+                despues de cada sincronizacion con el ERP.
+              </Text>
+            )}
+          </div>
+        )}
+      </div>
+    </Container>
+  )
+}
+
 const NubexPage = () => {
   const [logs, setLogs] = useState<SyncLog[]>([])
   const [configured, setConfigured] = useState(false)
@@ -512,6 +756,9 @@ const NubexPage = () => {
           )}
         </div>
       </Container>
+
+      {/* Low Stock Settings */}
+      <LowStockSettings />
 
       {/* Sync History */}
       <Container className="p-0">

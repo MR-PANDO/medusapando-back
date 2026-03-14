@@ -26,12 +26,12 @@ export default async function seedDomiciliosShipping({ container }: ExecArgs) {
   const stockLocationService = container.resolve(Modules.STOCK_LOCATION) as any
   const link = container.resolve(ContainerRegistrationKeys.LINK) as any
 
-  // Check if already seeded
-  const existingSets = await fulfillmentModuleService.listFulfillmentSets({
-    name: "Domicilios Medellín",
+  // Check if shipping option already exists
+  const existingOptions = await fulfillmentModuleService.listShippingOptions({
+    provider_id: "domicilios-medellin_domicilios-medellin",
   })
-  if (existingSets.length > 0) {
-    console.log("Domicilios shipping already seeded, skipping...")
+  if (existingOptions.length > 0) {
+    console.log("Domicilios shipping option already exists, skipping...")
     return
   }
 
@@ -53,7 +53,7 @@ export default async function seedDomiciliosShipping({ container }: ExecArgs) {
         stock_location_id: stockLocation.id,
       },
       [Modules.FULFILLMENT]: {
-        fulfillment_provider_id: "domicilios-medellin",
+        fulfillment_provider_id: "domicilios-medellin_domicilios-medellin",
       },
     })
     console.log("Linked stock location to domicilios-medellin provider")
@@ -85,34 +85,45 @@ export default async function seedDomiciliosShipping({ container }: ExecArgs) {
     console.log("Created default shipping profile")
   }
 
-  // 4. Create fulfillment set with service zone for Colombia
-  const fulfillmentSet = await fulfillmentModuleService.createFulfillmentSets({
-    name: "Domicilios Medellín",
-    type: "shipping",
-    service_zones: [
-      {
-        name: "Colombia",
-        geo_zones: [
-          {
-            country_code: "co",
-            type: "country",
-          },
-        ],
-      },
-    ],
-  })
-  console.log(`Created fulfillment set: ${fulfillmentSet.id}`)
+  // 4. Get or create fulfillment set with service zone for Colombia
+  const existingSets = await fulfillmentModuleService.listFulfillmentSets(
+    { name: "Domicilios Medellín" },
+    { relations: ["service_zones"] }
+  )
+  let fulfillmentSet: any
 
-  // 5. Link fulfillment set to stock location
-  await link.create({
-    [Modules.STOCK_LOCATION]: {
-      stock_location_id: stockLocation.id,
-    },
-    [Modules.FULFILLMENT]: {
-      fulfillment_set_id: fulfillmentSet.id,
-    },
-  })
-  console.log("Linked fulfillment set to stock location")
+  if (existingSets.length > 0) {
+    fulfillmentSet = existingSets[0]
+    console.log(`Using existing fulfillment set: ${fulfillmentSet.id}`)
+  } else {
+    fulfillmentSet = await fulfillmentModuleService.createFulfillmentSets({
+      name: "Domicilios Medellín",
+      type: "shipping",
+      service_zones: [
+        {
+          name: "Colombia",
+          geo_zones: [
+            {
+              country_code: "co",
+              type: "country",
+            },
+          ],
+        },
+      ],
+    })
+    console.log(`Created fulfillment set: ${fulfillmentSet.id}`)
+
+    // Link fulfillment set to stock location
+    await link.create({
+      [Modules.STOCK_LOCATION]: {
+        stock_location_id: stockLocation.id,
+      },
+      [Modules.FULFILLMENT]: {
+        fulfillment_set_id: fulfillmentSet.id,
+      },
+    })
+    console.log("Linked fulfillment set to stock location")
+  }
 
   // 6. Create shipping option with calculated pricing
   const serviceZoneId = fulfillmentSet.service_zones[0].id
@@ -122,7 +133,7 @@ export default async function seedDomiciliosShipping({ container }: ExecArgs) {
       {
         name: "Domicilio Área Metropolitana",
         price_type: "calculated",
-        provider_id: "domicilios-medellin",
+        provider_id: "domicilios-medellin_domicilios-medellin",
         service_zone_id: serviceZoneId,
         shipping_profile_id: shippingProfile.id,
         type: {

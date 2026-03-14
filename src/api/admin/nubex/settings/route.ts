@@ -24,14 +24,26 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return
   }
 
-  if (low_stock_enabled && !notification_email) {
-    res.status(400).json({ error: "Se requiere un email para activar las notificaciones" })
+  // Validate comma-separated emails
+  const emailStr = notification_email ? String(notification_email).trim() : ""
+  if (low_stock_enabled && !emailStr) {
+    res.status(400).json({ error: "Se requiere al menos un email para activar las notificaciones" })
     return
+  }
+
+  if (emailStr) {
+    const emails = emailStr.split(",").map((e: string) => e.trim()).filter(Boolean)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const invalid = emails.filter((e: string) => !emailRegex.test(e))
+    if (invalid.length > 0) {
+      res.status(400).json({ error: `Email(s) invalido(s): ${invalid.join(", ")}` })
+      return
+    }
   }
 
   await nubexService.upsertNubexSettings({
     low_stock_threshold: Math.floor(low_stock_threshold),
-    notification_email: notification_email || null,
+    notification_email: emailStr || null,
     low_stock_enabled: !!low_stock_enabled,
   })
 

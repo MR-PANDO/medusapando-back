@@ -517,7 +517,7 @@ const LowStockSettings = () => {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="inventario@ejemplo.com"
+                    placeholder="email1@ejemplo.com, email2@ejemplo.com"
                   />
                 ) : (
                   <Text className="text-sm font-medium py-2">
@@ -579,7 +579,7 @@ const LowStockSettings = () => {
               <Text className="text-ui-fg-subtle text-xs">
                 Se enviara una alerta a <strong>{settings.notification_email}</strong> cuando
                 algun producto tenga menos de <strong>{settings.low_stock_threshold}</strong> unidades
-                despues de cada sincronizacion con el ERP.
+                despues de cada sincronizacion con el ERP. Puedes agregar varios correos separados por coma.
               </Text>
             )}
           </div>

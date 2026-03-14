@@ -28,9 +28,14 @@ Zone-based shipping for the Medellin metropolitan area. Each neighborhood (barri
 
 San Antonio de Prado is listed under Medellin (it's a corregimiento).
 
-### Non-metropolitan areas
+### Shipping option visibility
 
-Municipalities outside the metro area do NOT show the barrio dropdown. National shipping options (to be added later) will handle those addresses.
+| Customer location | Domicilio Metro | Envío Nacional |
+|---|---|---|
+| Metro municipality (Medellín, Bello, etc.) | Visible (calculated) | Visible ($15.000) |
+| Rest of Colombia | Hidden | Visible ($15.000) |
+
+This is enforced via **city-level geo zones** in Medusa. The domicilios service zone has individual geo zones for each metro municipality (type: `city`, province_code: `antioquia`). The nacional service zone uses a country-level geo zone (type: `country`, country_code: `co`).
 
 ### Where is the barrio stored?
 
@@ -180,26 +185,28 @@ INSERT INTO neighborhood (id, name, slug, shipping_price, municipality_id, creat
 VALUES ('neigh_custom', 'Nuevo Barrio', 'nuevo-barrio', 10000, 'muni_medellin', NOW(), NOW());
 ```
 
-### Shipping option setup (Medusa Admin)
+### Shipping infrastructure (seeded automatically)
 
-After deploying, you need to create the shipping option in Medusa Admin:
+The seed script `seed-domicilios-shipping.ts` creates everything in the Medusa v2 way:
 
-1. Go to **Settings > Locations & Shipping**
-2. Create a **Fulfillment Set** linked to your stock location
-3. Create a **Service Zone** with geo zone: country=CO
-4. Create a **Shipping Option**:
-   - Name: "Domicilio Área Metropolitana"
-   - Provider: `domicilios-medellin`
-   - Price type: **Calculated**
-   - Shipping profile: Default
-5. The provider will calculate the price based on the selected neighborhood
+**Fulfillment Set 1: "Domicilios Medellín"**
+- Service zone: "Área Metropolitana de Medellín"
+- Geo zones: 9 city-level zones (Medellín, Bello, Copacabana, etc.)
+- Shipping option: "Domicilio Área Metropolitana" (calculated, domicilios-medellin provider)
+
+**Fulfillment Set 2: "Envíos Nacionales"**
+- Service zone: "Colombia Nacional"
+- Geo zone: country-level (CO)
+- Shipping option: "Envío Nacional" (flat, $15.000 COP, manual provider)
+
+Both are linked to the stock location and sales channel.
 
 ### Deployment
 
-1. Deploy backend
+1. Deploy backend (ensure `fulfillment-manual` + `fulfillment-domicilios` in medusa-config.ts)
 2. Run `npx medusa db:migrate` (creates `neighborhood` table)
 3. Run `npx medusa exec ./src/scripts/seed-neighborhoods.js` (seeds ~70 zones)
-4. In Medusa Admin: create fulfillment set + service zone + shipping option (see above)
+4. Run `npx medusa exec ./src/scripts/seed-domicilios-shipping.js` (creates fulfillment sets + shipping options)
 5. Deploy frontend
 
 ### Future: National shipping

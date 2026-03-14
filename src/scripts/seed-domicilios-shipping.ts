@@ -10,123 +10,121 @@ import {
 } from "@medusajs/medusa/core-flows"
 
 /**
- * Seeds the fulfillment infrastructure for local delivery (domicilios)
- * in the Area Metropolitana de Medellín.
+ * Municipalities in the Area Metropolitana de Medellín.
+ * These are the cities with neighborhood-based delivery (domicilios).
+ * City names MUST match exactly what's stored in cart.shipping_address.city
+ * (from the LocationSelect municipality name).
+ */
+const METRO_MUNICIPALITIES = [
+  "Medellín",
+  "Bello",
+  "Copacabana",
+  "Girardota",
+  "Envigado",
+  "Sabaneta",
+  "Itagüí",
+  "La Estrella",
+  "Caldas",
+]
+
+/**
+ * Seeds the complete shipping infrastructure:
  *
- * Creates:
- * 1. Fulfillment set linked to existing stock location
- * 2. Service zone for Colombia (country_code: "co")
- * 3. Shipping option with calculated pricing (provider: domicilios-medellin)
- * 4. Links stock location to fulfillment provider
+ * 1. "Domicilios Medellín" — calculated pricing, city-level geo zones
+ *    for metro municipalities ONLY (provider: domicilios-medellin)
  *
- * Idempotent: skips if a fulfillment set named "Domicilios Medellín" exists.
+ * 2. "Envíos Nacionales" — flat rate placeholder for rest of Colombia
+ *    (provider: manual_manual, to be configured later)
+ *
+ * Idempotent: skips if shipping options already exist.
  */
 export default async function seedDomiciliosShipping({ container }: ExecArgs) {
   const fulfillmentModuleService = container.resolve(Modules.FULFILLMENT) as any
   const stockLocationService = container.resolve(Modules.STOCK_LOCATION) as any
   const link = container.resolve(ContainerRegistrationKeys.LINK) as any
 
-  // Check if shipping option already exists
+  // Check if already seeded
   const existingOptions = await fulfillmentModuleService.listShippingOptions({
     provider_id: "domicilios-medellin_domicilios-medellin",
   })
   if (existingOptions.length > 0) {
-    console.log("Domicilios shipping option already exists, skipping...")
+    console.log("Domicilios shipping already seeded, skipping...")
     return
   }
 
-  // 1. Get or create stock location
+  // 1. Get stock location
   const stockLocations = await stockLocationService.listStockLocations({}, { take: 1 })
-  let stockLocation: any
-
-  if (stockLocations.length > 0) {
-    stockLocation = stockLocations[0]
-    console.log(`Using existing stock location: ${stockLocation.name} (${stockLocation.id})`)
-  } else {
+  if (stockLocations.length === 0) {
     throw new Error("No stock location found. Create one in Medusa Admin first.")
   }
+  const stockLocation = stockLocations[0]
+  console.log(`Using stock location: ${stockLocation.name} (${stockLocation.id})`)
 
-  // 2. Link stock location to domicilios fulfillment provider
+  // 2. Link stock location to domicilios provider
   try {
     await link.create({
-      [Modules.STOCK_LOCATION]: {
-        stock_location_id: stockLocation.id,
-      },
-      [Modules.FULFILLMENT]: {
-        fulfillment_provider_id: "domicilios-medellin_domicilios-medellin",
-      },
+      [Modules.STOCK_LOCATION]: { stock_location_id: stockLocation.id },
+      [Modules.FULFILLMENT]: { fulfillment_provider_id: "domicilios-medellin_domicilios-medellin" },
     })
     console.log("Linked stock location to domicilios-medellin provider")
   } catch (err: any) {
-    // Link might already exist
-    if (!err.message?.includes("already exists")) {
-      console.warn("Link creation warning:", err.message)
-    }
+    console.warn("Provider link warning:", err.message)
   }
 
   // 3. Get or create default shipping profile
-  const shippingProfiles = await fulfillmentModuleService.listShippingProfiles({
-    type: "default",
-  })
+  const shippingProfiles = await fulfillmentModuleService.listShippingProfiles({ type: "default" })
   let shippingProfile = shippingProfiles.length ? shippingProfiles[0] : null
-
   if (!shippingProfile) {
-    const { result: profileResult } = await createShippingProfilesWorkflow(container).run({
-      input: {
-        data: [
-          {
-            name: "Default Shipping Profile",
-            type: "default",
-          },
-        ],
-      },
+    const { result } = await createShippingProfilesWorkflow(container).run({
+      input: { data: [{ name: "Default Shipping Profile", type: "default" }] },
     })
-    shippingProfile = profileResult[0]
+    shippingProfile = result[0]
     console.log("Created default shipping profile")
   }
 
-  // 4. Get or create fulfillment set with service zone for Colombia
-  const existingSets = await fulfillmentModuleService.listFulfillmentSets(
+  // ═══════════════════════════════════════════════════════════════
+  // 4. DOMICILIOS — City-level geo zones for metro municipalities
+  // ═══════════════════════════════════════════════════════════════
+
+  // Delete old country-level fulfillment set if it exists (from previous seed)
+  const oldSets = await fulfillmentModuleService.listFulfillmentSets(
     { name: "Domicilios Medellín" },
-    { relations: ["service_zones"] }
+    { relations: ["service_zones", "service_zones.geo_zones"] }
   )
-  let fulfillmentSet: any
-
-  if (existingSets.length > 0) {
-    fulfillmentSet = existingSets[0]
-    console.log(`Using existing fulfillment set: ${fulfillmentSet.id}`)
-  } else {
-    fulfillmentSet = await fulfillmentModuleService.createFulfillmentSets({
-      name: "Domicilios Medellín",
-      type: "shipping",
-      service_zones: [
-        {
-          name: "Colombia",
-          geo_zones: [
-            {
-              country_code: "co",
-              type: "country",
-            },
-          ],
-        },
-      ],
-    })
-    console.log(`Created fulfillment set: ${fulfillmentSet.id}`)
-
-    // Link fulfillment set to stock location
-    await link.create({
-      [Modules.STOCK_LOCATION]: {
-        stock_location_id: stockLocation.id,
-      },
-      [Modules.FULFILLMENT]: {
-        fulfillment_set_id: fulfillmentSet.id,
-      },
-    })
-    console.log("Linked fulfillment set to stock location")
+  for (const old of oldSets) {
+    try {
+      await fulfillmentModuleService.deleteFulfillmentSets(old.id)
+      console.log(`Deleted old fulfillment set: ${old.id}`)
+    } catch (err: any) {
+      console.warn("Could not delete old set:", err.message)
+    }
   }
 
-  // 6. Create shipping option with calculated pricing
-  const serviceZoneId = fulfillmentSet.service_zones[0].id
+  // Build city-level geo zones for each metro municipality
+  const metroGeoZones = METRO_MUNICIPALITIES.map((city) => ({
+    type: "city" as const,
+    country_code: "co",
+    province_code: "antioquia",
+    city,
+  }))
+
+  const domiciliosSet = await fulfillmentModuleService.createFulfillmentSets({
+    name: "Domicilios Medellín",
+    type: "shipping",
+    service_zones: [
+      {
+        name: "Área Metropolitana de Medellín",
+        geo_zones: metroGeoZones,
+      },
+    ],
+  })
+  console.log(`Created fulfillment set "Domicilios Medellín": ${domiciliosSet.id}`)
+  console.log(`  Service zone with ${metroGeoZones.length} city geo zones`)
+
+  await link.create({
+    [Modules.STOCK_LOCATION]: { stock_location_id: stockLocation.id },
+    [Modules.FULFILLMENT]: { fulfillment_set_id: domiciliosSet.id },
+  })
 
   await createShippingOptionsWorkflow(container).run({
     input: [
@@ -134,7 +132,7 @@ export default async function seedDomiciliosShipping({ container }: ExecArgs) {
         name: "Domicilio Área Metropolitana",
         price_type: "calculated",
         provider_id: "domicilios-medellin_domicilios-medellin",
-        service_zone_id: serviceZoneId,
+        service_zone_id: domiciliosSet.service_zones[0].id,
         shipping_profile_id: shippingProfile.id,
         type: {
           label: "Domicilio",
@@ -142,44 +140,97 @@ export default async function seedDomiciliosShipping({ container }: ExecArgs) {
           code: "domicilio-metro",
         },
         rules: [
-          {
-            attribute: "enabled_in_store",
-            value: "true",
-            operator: "eq",
-          },
-          {
-            attribute: "is_return",
-            value: "false",
-            operator: "eq",
-          },
+          { attribute: "enabled_in_store", value: "true", operator: "eq" },
+          { attribute: "is_return", value: "false", operator: "eq" },
         ],
       },
     ],
   })
   console.log("Created shipping option: Domicilio Área Metropolitana (calculated)")
 
-  // 7. Link sales channel to stock location (if not already linked)
-  try {
-    const storeService = container.resolve(Modules.STORE) as any
-    const stores = await storeService.listStores({}, { take: 1 })
-    if (stores.length > 0) {
-      const salesChannelService = container.resolve(Modules.SALES_CHANNEL) as any
-      const salesChannels = await salesChannelService.listSalesChannels({}, { take: 1 })
-      if (salesChannels.length > 0) {
-        await linkSalesChannelsToStockLocationWorkflow(container).run({
-          input: {
-            id: stockLocation.id,
-            add: [salesChannels[0].id],
+  // ═══════════════════════════════════════════════════════════════
+  // 5. ENVÍOS NACIONALES — Country-level for all of Colombia
+  // ═══════════════════════════════════════════════════════════════
+
+  // Check if national set already exists
+  const existingNational = await fulfillmentModuleService.listFulfillmentSets({
+    name: "Envíos Nacionales",
+  })
+
+  if (existingNational.length === 0) {
+    const nacionalSet = await fulfillmentModuleService.createFulfillmentSets({
+      name: "Envíos Nacionales",
+      type: "shipping",
+      service_zones: [
+        {
+          name: "Colombia Nacional",
+          geo_zones: [
+            {
+              type: "country" as const,
+              country_code: "co",
+            },
+          ],
+        },
+      ],
+    })
+    console.log(`Created fulfillment set "Envíos Nacionales": ${nacionalSet.id}`)
+
+    await link.create({
+      [Modules.STOCK_LOCATION]: { stock_location_id: stockLocation.id },
+      [Modules.FULFILLMENT]: { fulfillment_set_id: nacionalSet.id },
+    })
+
+    // Create a flat-rate national shipping option (placeholder)
+    await createShippingOptionsWorkflow(container).run({
+      input: [
+        {
+          name: "Envío Nacional",
+          price_type: "flat",
+          provider_id: "manual_manual",
+          service_zone_id: nacionalSet.service_zones[0].id,
+          shipping_profile_id: shippingProfile.id,
+          type: {
+            label: "Envío Nacional",
+            description: "Envío a cualquier ciudad de Colombia (3-5 días hábiles)",
+            code: "envio-nacional",
           },
-        })
-        console.log("Linked sales channel to stock location")
-      }
-    }
-  } catch (err: any) {
-    // May already be linked
-    console.warn("Sales channel link warning:", err.message)
+          prices: [
+            { currency_code: "cop", amount: 15000 },
+          ],
+          rules: [
+            { attribute: "enabled_in_store", value: "true", operator: "eq" },
+            { attribute: "is_return", value: "false", operator: "eq" },
+          ],
+        },
+      ],
+    })
+    console.log("Created shipping option: Envío Nacional (flat $15.000 COP)")
+  } else {
+    console.log("Envíos Nacionales already exists, skipping...")
   }
 
-  console.log("\nDone! Domicilios shipping setup complete.")
-  console.log("The shipping option will appear at checkout for Colombian addresses.")
+  // 6. Link sales channel to stock location
+  try {
+    const salesChannelService = container.resolve(Modules.SALES_CHANNEL) as any
+    const salesChannels = await salesChannelService.listSalesChannels({}, { take: 1 })
+    if (salesChannels.length > 0) {
+      await linkSalesChannelsToStockLocationWorkflow(container).run({
+        input: { id: stockLocation.id, add: [salesChannels[0].id] },
+      })
+      console.log("Linked sales channel to stock location")
+    }
+  } catch (err: any) {
+    console.warn("Sales channel link:", err.message)
+  }
+
+  console.log("\n══════════════════════════════════════════")
+  console.log("Shipping setup complete!")
+  console.log("")
+  console.log("Metro area (Medellín, Bello, Envigado, etc.):")
+  console.log("  → Domicilio Área Metropolitana (precio según barrio)")
+  console.log("  → Envío Nacional ($15.000 COP)")
+  console.log("")
+  console.log("Resto de Colombia:")
+  console.log("  → Envío Nacional ($15.000 COP)")
+  console.log("══════════════════════════════════════════")
 }

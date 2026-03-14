@@ -2,86 +2,80 @@ import { ExecArgs } from "@medusajs/framework/types"
 import { Modules, ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 /**
- * Diagnostic script: checks and fixes shipping profile mismatches.
+ * Assigns ALL products to the default shipping profile.
  *
- * The error "cart items require shipping profiles not satisfied by current shipping methods"
- * happens when products' shipping profile doesn't match the shipping option's profile.
- *
- * This script:
- * 1. Lists all shipping profiles
- * 2. Shows which profile products use vs which shipping options use
- * 3. If there's a mismatch, updates all shipping options to use the same profile as products
+ * Products without a shipping profile cause "cart items require shipping profiles
+ * not satisfied by current shipping methods" error on order completion.
  */
 export default async function fixShippingProfiles({ container }: ExecArgs) {
   const fulfillmentModuleService = container.resolve(Modules.FULFILLMENT) as any
-  const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+  const productService = container.resolve(Modules.PRODUCT) as any
+  const link = container.resolve(ContainerRegistrationKeys.LINK) as any
 
-  // 1. List all shipping profiles
-  const profiles = await fulfillmentModuleService.listShippingProfiles({})
-  console.log(`\nShipping Profiles (${profiles.length}):`)
-  for (const p of profiles) {
-    console.log(`  - ${p.id} | name: "${p.name}" | type: ${p.type}`)
+  // 1. Get the default shipping profile
+  const profiles = await fulfillmentModuleService.listShippingProfiles({ type: "default" })
+  if (profiles.length === 0) {
+    console.log("No default shipping profile found!")
+    return
   }
+  const defaultProfile = profiles[0]
+  console.log(`Default Shipping Profile: ${defaultProfile.id} ("${defaultProfile.name}")`)
 
-  // 2. Check which profile products use
-  const { data: products } = await query.graph({
+  // 2. Get ALL products
+  const products = await productService.listProducts({}, { take: 9999 })
+  console.log(`Total products: ${products.length}`)
+
+  // 3. Check which products already have a profile link
+  const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+  const { data: linkedProducts } = await query.graph({
     entity: "product",
-    fields: ["id", "title", "shipping_profile.id", "shipping_profile.name"],
-    pagination: { take: 10 },
+    fields: ["id", "shipping_profile.id"],
+    pagination: { take: 9999 },
   })
 
-  const productProfileIds = new Set<string>()
-  console.log(`\nProducts and their profiles (first 10):`)
-  for (const p of products) {
-    const profileId = p.shipping_profile?.id || "NONE"
-    productProfileIds.add(profileId)
-    console.log(`  - ${p.title?.substring(0, 40)} → profile: ${profileId}`)
-  }
-
-  // 3. Check which profile shipping options use
-  const shippingOptions = await fulfillmentModuleService.listShippingOptions(
-    {},
-    { relations: ["shipping_profile"] }
+  const productsWithProfile = new Set(
+    linkedProducts
+      .filter((p: any) => p.shipping_profile?.id)
+      .map((p: any) => p.id)
   )
 
-  console.log(`\nShipping Options (${shippingOptions.length}):`)
-  for (const so of shippingOptions) {
-    const profileId = so.shipping_profile_id || so.shipping_profile?.id || "NONE"
-    console.log(`  - ${so.id} | "${so.name}" | provider: ${so.provider_id} | profile: ${profileId}`)
-  }
+  const productsWithoutProfile = products.filter(
+    (p: any) => !productsWithProfile.has(p.id)
+  )
 
-  // 4. Check for mismatches
-  const productProfile = [...productProfileIds][0]
-  if (!productProfile || productProfile === "NONE") {
-    console.log("\n⚠ Products don't have shipping profiles assigned!")
+  console.log(`Products with profile: ${productsWithProfile.size}`)
+  console.log(`Products WITHOUT profile: ${productsWithoutProfile.length}`)
+
+  if (productsWithoutProfile.length === 0) {
+    console.log("\n✓ All products already have a shipping profile!")
     return
   }
 
-  const mismatchedOptions = shippingOptions.filter(
-    (so: any) => so.shipping_profile_id !== productProfile && so.shipping_profile?.id !== productProfile
-  )
+  // 4. Link all unlinked products to the default shipping profile
+  console.log(`\nAssigning ${productsWithoutProfile.length} products to "${defaultProfile.name}"...`)
 
-  if (mismatchedOptions.length === 0) {
-    console.log(`\n✓ All shipping options use the same profile as products (${productProfile})`)
-    return
+  let linked = 0
+  let errors = 0
+
+  for (const product of productsWithoutProfile) {
+    try {
+      await link.create({
+        [Modules.PRODUCT]: { product_id: product.id },
+        [Modules.FULFILLMENT]: { shipping_profile_id: defaultProfile.id },
+      })
+      linked++
+    } catch (err: any) {
+      // Link might already exist
+      if (err.message?.includes("already exists")) {
+        linked++
+      } else {
+        errors++
+        if (errors <= 3) {
+          console.error(`  Error linking ${product.title}: ${err.message}`)
+        }
+      }
+    }
   }
 
-  console.log(`\n⚠ MISMATCH FOUND!`)
-  console.log(`  Products use profile: ${productProfile}`)
-  console.log(`  Mismatched shipping options:`)
-  for (const so of mismatchedOptions) {
-    console.log(`    - ${so.name} (${so.id}) uses profile: ${so.shipping_profile_id}`)
-  }
-
-  // 5. Fix: update mismatched shipping options to use the product profile
-  console.log(`\nFixing: updating ${mismatchedOptions.length} shipping options to use profile ${productProfile}...`)
-  for (const so of mismatchedOptions) {
-    await fulfillmentModuleService.updateShippingOptions({
-      id: so.id,
-      shipping_profile_id: productProfile,
-    })
-    console.log(`  ✓ Updated "${so.name}" (${so.id})`)
-  }
-
-  console.log("\nDone! Shipping profile mismatch fixed.")
+  console.log(`\n✓ Done! Linked ${linked} products. Errors: ${errors}`)
 }

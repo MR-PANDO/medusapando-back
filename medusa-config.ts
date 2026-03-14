@@ -67,6 +67,10 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/location",
     },
+    // Wishlist Module
+    {
+      resolve: "./src/modules/wishlist",
+    },
     // Fulfillment Module — default manual + Domicilios (local delivery Medellín metro)
     {
       resolve: "@medusajs/medusa/fulfillment",

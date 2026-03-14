@@ -15,6 +15,7 @@ import {
   PostAdminCreateTranslation,
   PostAdminBatchTranslations,
 } from "./admin/translations/validators"
+import { PostStoreWishlistItem } from "./store/customers/me/wishlists/items/validators"
 import { skuSearchMiddleware } from "./middlewares/sku-search"
 import { stableSortMiddleware } from "./middlewares/stable-sort"
 
@@ -78,6 +79,12 @@ export default defineMiddlewares({
       matcher: "/admin/translations/batch",
       method: "POST",
       middlewares: [validateAndTransformBody(PostAdminBatchTranslations)],
+    },
+    // Wishlist - validate add item body
+    {
+      matcher: "/store/customers/me/wishlists/items",
+      method: "POST",
+      middlewares: [validateAndTransformBody(PostStoreWishlistItem)],
     },
     // Wompi - ensure body parser is enabled for generate-link
     {

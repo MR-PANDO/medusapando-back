@@ -132,6 +132,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           emailAuditService = req.scope.resolve<EmailAuditModuleService>(EMAIL_AUDIT_MODULE)
         } catch {}
 
+        // Extract shipping total for email display
+        const rawShipping = order.shipping_subtotal ?? order.summary?.current_shipping_total ?? 0
+        const shippingTotal = typeof rawShipping === "object"
+          ? Number(rawShipping.value ?? rawShipping.numeric ?? rawShipping)
+          : Number(rawShipping)
+
         await sendPaymentLinkEmail({
           to: order.email,
           customerName,
@@ -139,6 +145,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           amountInCents,
           checkoutUrl,
           items,
+          shippingTotal: shippingTotal > 0 ? Math.round(shippingTotal * 100) : undefined,
           auditService: emailAuditService,
         })
       } catch (emailErr) {

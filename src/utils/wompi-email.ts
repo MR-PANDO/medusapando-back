@@ -37,6 +37,7 @@ type PaymentLinkEmailParams = {
     thumbnail?: string
     unit_price?: number
   }>
+  shippingTotal?: number
   auditService?: EmailAuditModuleService
 }
 
@@ -81,6 +82,16 @@ export async function sendPaymentLinkEmail(params: PaymentLinkEmailParams) {
           </tr>`
             )
             .join("")}
+          ${params.shippingTotal ? `
+          <tr>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;"></td>
+            <td colspan="2" style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-family: ${FONT}; font-size: 14px; color: #6B7280;">
+              Envio
+            </td>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-family: ${FONT}; font-size: 14px; color: #1F2937;">
+              ${formatCOP(params.shippingTotal)}
+            </td>
+          </tr>` : ""}
         </table>`
       : ""
 

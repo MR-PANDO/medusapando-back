@@ -173,9 +173,9 @@ const ReviewsPage = () => {
           <div className="flex items-center gap-x-3">
             <Star className="text-ui-fg-subtle" />
             <div>
-              <Heading level="h1">Resenas de Productos</Heading>
+              <Heading level="h1">Reseñas de Productos</Heading>
               <Text className="text-ui-fg-subtle">
-                Gestiona las resenas de los clientes
+                Gestiona las reseñas de los clientes
               </Text>
             </div>
           </div>
@@ -205,7 +205,7 @@ const ReviewsPage = () => {
             </Button>
           ))}
           <Text className="text-xs text-ui-fg-muted ml-auto">
-            {count} resena{count !== 1 ? "s" : ""}
+            {count} reseña{count !== 1 ? "s" : ""}
           </Text>
         </div>
         <div className="flex gap-2 items-center">
@@ -255,7 +255,7 @@ const ReviewsPage = () => {
         ) : reviews.length === 0 ? (
           <div className="px-6 py-8 text-center">
             <Text className="text-ui-fg-subtle">
-              No se encontraron resenas.
+              No se encontraron reseñas.
             </Text>
           </div>
         ) : (
@@ -386,7 +386,7 @@ const ReviewsPage = () => {
 }
 
 export const config = defineRouteConfig({
-  label: "Resenas",
+  label: "Reseñas",
   icon: Star,
 })
 

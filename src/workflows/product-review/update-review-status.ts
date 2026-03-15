@@ -4,6 +4,7 @@ import {
   createWorkflow,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
+import { emitEventStep } from "@medusajs/medusa/core-flows"
 import { PRODUCT_REVIEW_MODULE } from "../../modules/product-review"
 import ProductReviewModuleService from "../../modules/product-review/service"
 
@@ -50,6 +51,11 @@ export const updateReviewStatusWorkflow = createWorkflow(
   "update-review-status",
   (input: UpdateReviewStatusInput) => {
     const review = updateReviewStatusStep(input)
+
+    emitEventStep({
+      eventName: "product_review.updated",
+      data: { id: input.id },
+    })
 
     return new WorkflowResponse(review)
   }

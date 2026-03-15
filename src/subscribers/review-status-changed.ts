@@ -21,27 +21,21 @@ export default async function reviewStatusChangedHandler({
     const review = await reviewService.retrieveReview(event.data.id)
     if (!review?.product_id) return
 
-    // Get average rating for approved reviews
-    const avgRating = await reviewService.getAverageRating(review.product_id)
-
-    // Count approved reviews — listAndCountReviews returns [records, count]
-    const [, reviewCount] = await reviewService.listAndCountReviews(
-      { product_id: review.product_id, status: "approved" as any },
-      { take: 1 }
-    )
+    // Get average rating and count for approved reviews
+    const ratingData = await reviewService.getAverageRating(review.product_id)
 
     // Update product metadata
     const product = await productService.retrieveProduct(review.product_id)
     await productService.updateProducts(review.product_id, {
       metadata: {
         ...(product.metadata || {}),
-        review_count: reviewCount,
-        avg_rating: avgRating,
+        review_count: ratingData.count,
+        avg_rating: ratingData.average,
       },
     })
 
     console.log(
-      `[Reviews] Updated product ${review.product_id}: ${reviewCount} reviews, ${avgRating} avg rating`
+      `[Reviews] Updated product ${review.product_id}: ${ratingData.count} reviews, ${ratingData.average} avg rating`
     )
   } catch (err: any) {
     console.error("[Reviews] Failed to update product metadata:", err.message)

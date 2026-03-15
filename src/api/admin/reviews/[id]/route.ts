@@ -36,18 +36,14 @@ export const POST = async (
 
     const fullReview = await reviewService.retrieveReview(id)
     if (fullReview?.product_id) {
-      const avgRating = await reviewService.getAverageRating(fullReview.product_id)
-      const [, reviewCount] = await reviewService.listAndCountReviews(
-        { product_id: fullReview.product_id, status: "approved" as any },
-        { take: 1 }
-      )
+      const ratingData = await reviewService.getAverageRating(fullReview.product_id)
 
       const product = await productService.retrieveProduct(fullReview.product_id)
       await productService.updateProducts(fullReview.product_id, {
         metadata: {
           ...(product.metadata || {}),
-          review_count: reviewCount,
-          avg_rating: avgRating,
+          review_count: ratingData.count,
+          avg_rating: ratingData.average,
         },
       })
     }

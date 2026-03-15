@@ -16,6 +16,7 @@ import {
   PostAdminBatchTranslations,
 } from "./admin/translations/validators"
 import { PostStoreWishlistItem } from "./store/customers/me/wishlists/items/validators"
+import { PostStoreCreateReview } from "./store/reviews/validators"
 import { skuSearchMiddleware } from "./middlewares/sku-search"
 import { stableSortMiddleware } from "./middlewares/stable-sort"
 
@@ -91,6 +92,12 @@ export default defineMiddlewares({
       matcher: "/admin/wompi/generate-link",
       method: "POST",
       bodyParser: { sizeLimit: "1mb" },
+    },
+    // Review validation middlewares
+    {
+      matcher: "/store/reviews",
+      method: "POST",
+      middlewares: [validateAndTransformBody(PostStoreCreateReview)],
     },
   ],
 })

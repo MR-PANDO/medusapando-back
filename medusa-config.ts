@@ -67,6 +67,10 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/location",
     },
+    // Product Review Module
+    {
+      resolve: "./src/modules/product-review",
+    },
     // Low Stock Notification Module
     {
       resolve: "./src/modules/low-stock-notification",

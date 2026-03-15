@@ -1,0 +1,14 @@
+import ProductReviewModule from "../modules/product-review"
+import ProductModule from "@medusajs/medusa/product"
+import { defineLink } from "@medusajs/framework/utils"
+
+export default defineLink(
+  {
+    linkable: ProductReviewModule.linkable.productReview,
+    field: "product_id",
+  },
+  ProductModule.linkable.product,
+  {
+    readOnly: true,
+  }
+)

@@ -6,7 +6,7 @@ import ProductReviewModuleService from "../modules/product-review/service"
 /**
  * When a review status changes (approved/rejected), update the product's
  * metadata with review_count and avg_rating so products can be sorted
- * by reviews in the store.
+ * by reviews in the store and stars show on product cards.
  */
 export default async function reviewStatusChangedHandler({
   event,
@@ -21,15 +21,14 @@ export default async function reviewStatusChangedHandler({
     const review = await reviewService.retrieveReview(event.data.id)
     if (!review?.product_id) return
 
-    // Get average rating and count for this product
+    // Get average rating for approved reviews
     const avgRating = await reviewService.getAverageRating(review.product_id)
 
-    const [approvedReviews] = await reviewService.listAndCountReviews(
+    // Count approved reviews — listAndCountReviews returns [records, count]
+    const [, reviewCount] = await reviewService.listAndCountReviews(
       { product_id: review.product_id, status: "approved" as any },
-      { take: 0 }
+      { take: 1 }
     )
-
-    const reviewCount = approvedReviews as unknown as number
 
     // Update product metadata
     const product = await productService.retrieveProduct(review.product_id)
@@ -42,7 +41,7 @@ export default async function reviewStatusChangedHandler({
     })
 
     console.log(
-      `[Reviews] Updated product ${review.product_id} metadata: ${reviewCount} reviews, ${avgRating} avg rating`
+      `[Reviews] Updated product ${review.product_id}: ${reviewCount} reviews, ${avgRating} avg rating`
     )
   } catch (err: any) {
     console.error("[Reviews] Failed to update product metadata:", err.message)

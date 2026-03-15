@@ -1,5 +1,8 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { Modules } from "@medusajs/framework/utils"
 import { updateReviewStatusWorkflow } from "../../../../workflows/product-review/update-review-status"
+import { PRODUCT_REVIEW_MODULE } from "../../../../modules/product-review"
+import ProductReviewModuleService from "../../../../modules/product-review/service"
 
 type UpdateReviewStatusBody = {
   status: "approved" | "rejected"
@@ -24,6 +27,33 @@ export const POST = async (
   ).run({
     input: { id, status },
   })
+
+  // Directly update product metadata with review stats
+  try {
+    const reviewService: ProductReviewModuleService =
+      req.scope.resolve(PRODUCT_REVIEW_MODULE)
+    const productService = req.scope.resolve(Modules.PRODUCT) as any
+
+    const fullReview = await reviewService.retrieveReview(id)
+    if (fullReview?.product_id) {
+      const avgRating = await reviewService.getAverageRating(fullReview.product_id)
+      const [, reviewCount] = await reviewService.listAndCountReviews(
+        { product_id: fullReview.product_id, status: "approved" as any },
+        { take: 1 }
+      )
+
+      const product = await productService.retrieveProduct(fullReview.product_id)
+      await productService.updateProducts(fullReview.product_id, {
+        metadata: {
+          ...(product.metadata || {}),
+          review_count: reviewCount,
+          avg_rating: avgRating,
+        },
+      })
+    }
+  } catch (err: any) {
+    console.error("[Reviews] Failed to update product metadata:", err.message)
+  }
 
   res.json({ review })
 }

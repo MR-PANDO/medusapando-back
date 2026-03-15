@@ -3,7 +3,8 @@ import { NUBEX_MODULE } from "../../../../modules/nubex"
 import type NubexModuleService from "../../../../modules/nubex/service"
 
 /**
- * GET /admin/nubex/settings — Get low-stock notification settings
+ * GET /admin/nubex/settings — Get low-stock notification settings (legacy)
+ * Redirects to the new low-stock-notification module
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const nubexService = req.scope.resolve(NUBEX_MODULE) as NubexModuleService
@@ -12,7 +13,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 }
 
 /**
- * POST /admin/nubex/settings — Update low-stock notification settings
+ * POST /admin/nubex/settings — Update low-stock settings (legacy)
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const nubexService = req.scope.resolve(NUBEX_MODULE) as NubexModuleService
@@ -24,7 +25,6 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return
   }
 
-  // Validate comma-separated emails
   const emailStr = notification_email ? String(notification_email).trim() : ""
   if (low_stock_enabled && !emailStr) {
     res.status(400).json({ error: "Se requiere al menos un email para activar las notificaciones" })

@@ -67,6 +67,10 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/location",
     },
+    // Low Stock Notification Module
+    {
+      resolve: "./src/modules/low-stock-notification",
+    },
     // Wishlist Module
     {
       resolve: "./src/modules/wishlist",

@@ -345,14 +345,16 @@ const SyncLogRow = ({ log }: { log: SyncLog }) => {
   )
 }
 
-type NubexSettingsData = {
-  low_stock_threshold: number
+type LowStockSettingsData = {
+  threshold: number
   notification_email: string | null
-  low_stock_enabled: boolean
+  enabled: boolean
+  morning_time: string
+  afternoon_time: string
 }
 
 const LowStockSettings = () => {
-  const [settings, setSettings] = useState<NubexSettingsData | null>(null)
+  const [settings, setSettings] = useState<LowStockSettingsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -363,19 +365,23 @@ const LowStockSettings = () => {
   const [threshold, setThreshold] = useState(5)
   const [email, setEmail] = useState("")
   const [enabled, setEnabled] = useState(false)
+  const [morningTime, setMorningTime] = useState("08:00")
+  const [afternoonTime, setAfternoonTime] = useState("14:00")
 
   const fetchSettings = async () => {
     setLoading(true)
     try {
-      const res = await fetch("/admin/nubex/settings", { credentials: "include" })
+      const res = await fetch("/admin/low-stock-settings", { credentials: "include" })
       if (res.ok) {
         const data = await res.json()
-        const s = data.settings as NubexSettingsData | null
+        const s = data.settings as LowStockSettingsData | null
         setSettings(s)
         if (s) {
-          setThreshold(s.low_stock_threshold)
+          setThreshold(s.threshold)
           setEmail(s.notification_email ?? "")
-          setEnabled(s.low_stock_enabled)
+          setEnabled(s.enabled)
+          setMorningTime(s.morning_time || "08:00")
+          setAfternoonTime(s.afternoon_time || "14:00")
         }
       }
     } finally {
@@ -392,13 +398,17 @@ const LowStockSettings = () => {
     setSaveMsg(null)
     setSaveError(null)
     if (settings) {
-      setThreshold(settings.low_stock_threshold)
+      setThreshold(settings.threshold)
       setEmail(settings.notification_email ?? "")
-      setEnabled(settings.low_stock_enabled)
+      setEnabled(settings.enabled)
+      setMorningTime(settings.morning_time || "08:00")
+      setAfternoonTime(settings.afternoon_time || "14:00")
     } else {
       setThreshold(5)
       setEmail("")
       setEnabled(false)
+      setMorningTime("08:00")
+      setAfternoonTime("14:00")
     }
   }
 
@@ -407,14 +417,16 @@ const LowStockSettings = () => {
     setSaveMsg(null)
     setSaveError(null)
     try {
-      const res = await fetch("/admin/nubex/settings", {
+      const res = await fetch("/admin/low-stock-settings", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          low_stock_threshold: threshold,
+          threshold,
           notification_email: email || null,
-          low_stock_enabled: enabled,
+          enabled,
+          morning_time: morningTime,
+          afternoon_time: afternoonTime,
         }),
       })
       if (res.ok) {
@@ -447,10 +459,10 @@ const LowStockSettings = () => {
           </div>
         </div>
         <div className="flex gap-2 items-center">
-          {!loading && settings?.low_stock_enabled && (
+          {!loading && settings?.enabled && (
             <Badge color="green">Activo</Badge>
           )}
-          {!loading && !settings?.low_stock_enabled && (
+          {!loading && !settings?.enabled && (
             <Badge color="grey">Inactivo</Badge>
           )}
           {!editing && (
@@ -486,7 +498,7 @@ const LowStockSettings = () => {
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div className="flex flex-col gap-y-1">
                 <Label htmlFor="threshold" className="text-xs text-ui-fg-subtle uppercase">
                   Limite de stock
@@ -502,7 +514,7 @@ const LowStockSettings = () => {
                   />
                 ) : (
                   <Text className="text-sm font-medium py-2">
-                    {settings?.low_stock_threshold ?? 5} unidades
+                    {settings?.threshold ?? 5} unidades
                   </Text>
                 )}
               </div>
@@ -544,11 +556,47 @@ const LowStockSettings = () => {
                   </div>
                 ) : (
                   <Text className="text-sm font-medium py-2">
-                    {settings?.low_stock_enabled ? (
+                    {settings?.enabled ? (
                       <span className="text-green-600">Activadas</span>
                     ) : (
                       <span className="text-ui-fg-muted">Desactivadas</span>
                     )}
+                  </Text>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-y-1">
+                <Label htmlFor="morning_time" className="text-xs text-ui-fg-subtle uppercase">
+                  Hora manana
+                </Label>
+                {editing ? (
+                  <Input
+                    id="morning_time"
+                    type="time"
+                    value={morningTime}
+                    onChange={(e) => setMorningTime(e.target.value)}
+                  />
+                ) : (
+                  <Text className="text-sm font-medium py-2">
+                    {settings?.morning_time || "08:00"}
+                  </Text>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-y-1">
+                <Label htmlFor="afternoon_time" className="text-xs text-ui-fg-subtle uppercase">
+                  Hora tarde
+                </Label>
+                {editing ? (
+                  <Input
+                    id="afternoon_time"
+                    type="time"
+                    value={afternoonTime}
+                    onChange={(e) => setAfternoonTime(e.target.value)}
+                  />
+                ) : (
+                  <Text className="text-sm font-medium py-2">
+                    {settings?.afternoon_time || "14:00"}
                   </Text>
                 )}
               </div>
@@ -575,11 +623,12 @@ const LowStockSettings = () => {
               </div>
             )}
 
-            {!editing && settings?.low_stock_enabled && (
+            {!editing && settings?.enabled && (
               <Text className="text-ui-fg-subtle text-xs">
                 Se enviara una alerta a <strong>{settings.notification_email}</strong> cuando
-                algun producto tenga menos de <strong>{settings.low_stock_threshold}</strong> unidades
-                despues de cada sincronizacion con el ERP. Puedes agregar varios correos separados por coma.
+                algun producto publicado tenga menos de <strong>{settings.threshold}</strong> unidades.
+                Horarios: <strong>{settings.morning_time || "08:00"}</strong> y <strong>{settings.afternoon_time || "14:00"}</strong> (hora Colombia).
+                Puedes agregar varios correos separados por coma.
               </Text>
             )}
           </div>

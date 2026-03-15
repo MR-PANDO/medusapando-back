@@ -159,6 +159,7 @@ export async function runNubexSync(
       productId: string
       productTitle: string
       variantTitle: string
+      productStatus: string
     }> = []
     const priceUpdates: Array<{
       id: string
@@ -177,6 +178,7 @@ export async function runNubexSync(
         productId: variant.product?.id,
         productTitle: variant.product?.title ?? "",
         variantTitle: variant.title ?? "",
+        productStatus: variant.product?.status ?? "draft",
       })
 
       // Price update — COP amount
@@ -650,6 +652,8 @@ export async function runNubexSync(
         }> = []
 
         for (const mv of matchedVariants) {
+          // Only alert for published products in Medusa
+          if (mv.productStatus !== "published") continue
           const erpProduct = erpMap.get(mv.sku)
           if (!erpProduct) continue
           const qty = Math.max(0, Math.floor(erpProduct.cantidad))
